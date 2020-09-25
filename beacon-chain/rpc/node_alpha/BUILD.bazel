@@ -4,7 +4,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_test")
 go_library(
     name = "go_default_library",
     srcs = ["server.go"],
-    importpath = "github.com/prysmaticlabs/prysm/beacon-chain/rpc/node",
+    importpath = "github.com/prysmaticlabs/prysm/beacon-chain/rpc/node_alpha",
     visibility = ["//beacon-chain:__subpackages__"],
     deps = [
         "//beacon-chain/blockchain:go_default_library",
@@ -15,7 +15,7 @@ go_library(
         "@com_github_gogo_protobuf//types:go_default_library",
         "@com_github_libp2p_go_libp2p_core//network:go_default_library",
         "@com_github_libp2p_go_libp2p_core//peer:go_default_library",
-        "@com_github_prysmaticlabs_ethereumapis//eth/v1:go_default_library",
+        "@com_github_prysmaticlabs_ethereumapis//eth/v1alpha1:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//codes:go_default_library",
         "@org_golang_google_grpc//status:go_default_library",
