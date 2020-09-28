@@ -50,12 +50,18 @@ func (ns *Server) GetIdentity(ctx context.Context, _ *ptypes.Empty) (*ethpb.Iden
 	}
 
 	peerID := ns.PeerManager.PeerID()
-	metadata := ethpb.Metadata{}
+	metadata, err := ns.PeersFetcher.Peers().Metadata(peerID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Unable to get metadata: %v", err)
+	}
 	identity := &ethpb.Identity{
 		PeerId:       peerID.String(),
 		Enr:          enr,
 		P2PAddresses: stringAddrs,
-		Metadata:     metadata,
+		Metadata: &ethpb.Metadata{
+			Attnets:   metadata.Attnets,
+			SeqNumber: metadata.SeqNumber,
+		},
 	}
 	return &ethpb.IdentityResponse{
 		Data: identity,
