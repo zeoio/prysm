@@ -54,6 +54,7 @@ func (ns *Server) GetIdentity(ctx context.Context, _ *ptypes.Empty) (*ethpb.Iden
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Unable to get metadata: %v", err)
 	}
+	// TODO: Missing DiscoveryAddresses field.
 	identity := &ethpb.Identity{
 		PeerId:       peerID.String(),
 		Enr:          enr,
@@ -178,6 +179,12 @@ func (ns *Server) GetVersion(ctx context.Context, _ *ptypes.Empty) (*ethpb.Versi
 
 // GetSyncStatus requests the beacon node to describe if it's currently syncing or not, and
 // if it is, what block it is up to.
+//
+// TODO: Implement functionality needed for:
+// type SyncInfo struct {
+//	 HeadSlot             uint64
+//	 SyncDistance         uint64
+// }
 func (ns *Server) GetSyncStatus(ctx context.Context, _ *ptypes.Empty) (*ethpb.SyncingResponse, error) {
 	return nil, errors.New("unimplemented")
 }
