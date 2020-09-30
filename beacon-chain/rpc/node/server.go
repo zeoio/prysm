@@ -5,13 +5,15 @@ package node
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"sort"
+	"time"
 
 	ptypes "github.com/gogo/protobuf/types"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1"
+	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
+	"github.com/prysmaticlabs/prysm/beacon-chain/blockchain"
 	"github.com/prysmaticlabs/prysm/beacon-chain/db"
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
 	"github.com/prysmaticlabs/prysm/beacon-chain/sync"
@@ -25,19 +27,78 @@ import (
 // providing RPC endpoints for verifying a beacon node's sync status, genesis and
 // version information, and services the node implements and runs.
 type Server struct {
-	SyncChecker  sync.Checker
-	Server       *grpc.Server
-	BeaconDB     db.ReadOnlyDatabase
-	PeersFetcher p2p.PeersProvider
-	PeerManager  p2p.PeerManager
+	SyncChecker        sync.Checker
+	Server             *grpc.Server
+	BeaconDB           db.ReadOnlyDatabase
+	PeersFetcher       p2p.PeersProvider
+	PeerManager        p2p.PeerManager
+	GenesisTimeFetcher blockchain.TimeFetcher
+	GenesisFetcher     blockchain.GenesisFetcher
 }
 
-// GetIdentity return data about the node's network presence.
-func (ns *Server) GetIdentity(ctx context.Context, _ *ptypes.Empty) (*ethpb.IdentityResponse, error) {
-	hostAddrs := ns.PeerManager.Host().Addrs()
-	stringAddrs := make([]string, len(hostAddrs))
-	for i, addr := range hostAddrs {
-		stringAddrs[i] = addr.String()
+// GetSyncStatus checks the current network sync status of the node.
+func (ns *Server) GetSyncStatus(ctx context.Context, _ *ptypes.Empty) (*ethpb.SyncStatus, error) {
+	return &ethpb.SyncStatus{
+		Syncing: ns.SyncChecker.Syncing(),
+	}, nil
+}
+
+// GetGenesis fetches genesis chain information of Ethereum 2.0. Returns unix timestamp 0
+// if a genesis time has yet to be determined.
+func (ns *Server) GetGenesis(ctx context.Context, _ *ptypes.Empty) (*ethpb.Genesis, error) {
+	contractAddr, err := ns.BeaconDB.DepositContractAddress(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not retrieve contract address from db: %v", err)
+	}
+	genesisTime := ns.GenesisTimeFetcher.GenesisTime()
+	var defaultGenesisTime time.Time
+	var gt *ptypes.Timestamp
+	if genesisTime == defaultGenesisTime {
+		gt, err = ptypes.TimestampProto(time.Unix(0, 0))
+	} else {
+		gt, err = ptypes.TimestampProto(genesisTime)
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not convert genesis time to proto: %v", err)
+	}
+
+	genValRoot := ns.GenesisFetcher.GenesisValidatorRoot()
+	return &ethpb.Genesis{
+		GenesisTime:            gt,
+		DepositContractAddress: contractAddr,
+		GenesisValidatorsRoot:  genValRoot[:],
+	}, nil
+}
+
+// GetVersion checks the version information of the beacon node.
+func (ns *Server) GetVersion(ctx context.Context, _ *ptypes.Empty) (*ethpb.Version, error) {
+	return &ethpb.Version{
+		Version: version.GetVersion(),
+	}, nil
+}
+
+// ListImplementedServices lists the services implemented and enabled by this node.
+//
+// Any service not present in this list may return UNIMPLEMENTED or
+// PERMISSION_DENIED. The server may also support fetching services by grpc
+// reflection.
+func (ns *Server) ListImplementedServices(ctx context.Context, _ *ptypes.Empty) (*ethpb.ImplementedServices, error) {
+	serviceInfo := ns.Server.GetServiceInfo()
+	serviceNames := make([]string, 0, len(serviceInfo))
+	for svc := range serviceInfo {
+		serviceNames = append(serviceNames, svc)
+	}
+	sort.Strings(serviceNames)
+	return &ethpb.ImplementedServices{
+		Services: serviceNames,
+	}, nil
+}
+
+// GetHost returns the p2p data on the current local and host peer.
+func (ns *Server) GetHost(ctx context.Context, _ *ptypes.Empty) (*ethpb.HostData, error) {
+	stringAddr := []string{}
+	for _, addr := range ns.PeerManager.Host().Addrs() {
+		stringAddr = append(stringAddr, addr.String())
 	}
 	record := ns.PeerManager.ENR()
 	enr := ""
@@ -49,28 +110,15 @@ func (ns *Server) GetIdentity(ctx context.Context, _ *ptypes.Empty) (*ethpb.Iden
 		}
 	}
 
-	peerID := ns.PeerManager.PeerID()
-	metadata, err := ns.PeersFetcher.Peers().Metadata(peerID)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Unable to get metadata: %v", err)
-	}
-	// TODO: Missing DiscoveryAddresses field.
-	identity := &ethpb.Identity{
-		PeerId:       peerID.String(),
-		Enr:          enr,
-		P2PAddresses: stringAddrs,
-		Metadata: &ethpb.Metadata{
-			Attnets:   metadata.Attnets,
-			SeqNumber: metadata.SeqNumber,
-		},
-	}
-	return &ethpb.IdentityResponse{
-		Data: identity,
+	return &ethpb.HostData{
+		Addresses: stringAddr,
+		PeerId:    ns.PeerManager.PeerID().String(),
+		Enr:       enr,
 	}, nil
 }
 
 // GetPeer returns the data known about the peer defined by the provided peer id.
-func (ns *Server) GetPeer(ctx context.Context, peerReq *ethpb.PeerRequest) (*ethpb.PeerResponse, error) {
+func (ns *Server) GetPeer(ctx context.Context, peerReq *ethpb.PeerRequest) (*ethpb.Peer, error) {
 	pid, err := peer.Decode(peerReq.PeerId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Unable to parse provided peer id: %v", err)
@@ -105,20 +153,17 @@ func (ns *Server) GetPeer(ctx context.Context, peerReq *ethpb.PeerRequest) (*eth
 			return nil, status.Errorf(codes.Internal, "Unable to serialize enr: %v", err)
 		}
 	}
-	peerInfo := &ethpb.Peer{
-		PeerId:    peerReq.PeerId,
-		Enr:       enr,
-		Address:   addr.String(),
-		State:     ethpb.ConnectionState(connState),
-		Direction: pbDirection,
-	}
-	return &ethpb.PeerResponse{
-		Data: peerInfo,
+	return &ethpb.Peer{
+		Address:         addr.String(),
+		Direction:       pbDirection,
+		ConnectionState: ethpb.ConnectionState(connState),
+		PeerId:          peerReq.PeerId,
+		Enr:             enr,
 	}, nil
 }
 
-// ListPeers lists the info of all peers connected to this node.
-func (ns *Server) ListPeers(ctx context.Context, _ *ptypes.Empty) (*ethpb.PeersResponse, error) {
+// ListPeers lists the peers connected to this node.
+func (ns *Server) ListPeers(ctx context.Context, _ *ptypes.Empty) (*ethpb.Peers, error) {
 	peers := ns.PeersFetcher.Peers().Connected()
 	res := make([]*ethpb.Peer, 0, len(peers))
 	for _, pid := range peers {
@@ -154,49 +199,15 @@ func (ns *Server) ListPeers(ctx context.Context, _ *ptypes.Empty) (*ethpb.PeersR
 			pbDirection = ethpb.PeerDirection_OUTBOUND
 		}
 		res = append(res, &ethpb.Peer{
-			PeerId:    pid.String(),
-			Enr:       enr,
-			Address:   address,
-			State:     ethpb.ConnectionState_CONNECTED,
-			Direction: pbDirection,
+			Address:         address,
+			Direction:       pbDirection,
+			ConnectionState: ethpb.ConnectionState_CONNECTED,
+			PeerId:          pid.String(),
+			Enr:             enr,
 		})
 	}
 
-	return &ethpb.PeersResponse{
-		Data: res,
+	return &ethpb.Peers{
+		Peers: res,
 	}, nil
-}
-
-// GetVersion checks the version information of the beacon node.
-func (ns *Server) GetVersion(ctx context.Context, _ *ptypes.Empty) (*ethpb.VersionResponse, error) {
-	versionInfo := &ethpb.Version{
-		Version: version.GetVersion(),
-	}
-	return &ethpb.VersionResponse{
-		Data: versionInfo,
-	}, nil
-}
-
-// GetSyncStatus requests the beacon node to describe if it's currently syncing or not, and
-// if it is, what block it is up to.
-//
-// TODO: Implement functionality needed for:
-// type SyncInfo struct {
-//	 HeadSlot             uint64
-//	 SyncDistance         uint64
-// }
-func (ns *Server) GetSyncStatus(ctx context.Context, _ *ptypes.Empty) (*ethpb.SyncingResponse, error) {
-	return nil, errors.New("unimplemented")
-}
-
-// GetHealth returns node health status in http status codes. Useful for load balancers.
-// Response Usage:
-//    "200":
-//      description: Node is ready
-//    "206":
-//      description: Node is syncing but can serve incomplete data
-//    "503":
-//      description: Node not initialized or having issues
-func (ns *Server) GetHealth(ctx context.Context, _ *ptypes.Empty) (*ptypes.Empty, error) {
-	return nil, errors.New("unimplemented")
 }

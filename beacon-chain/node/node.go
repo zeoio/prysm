@@ -627,6 +627,7 @@ func (b *BeaconNode) registerRPCService() error {
 		OperationNotifier:       b,
 		StateGen:                b.stateGen,
 		EnableDebugRPCEndpoints: enableDebugRPCEndpoints,
+		SvcRegistry:             b.services,
 	})
 
 	return b.services.RegisterService(rpcService)

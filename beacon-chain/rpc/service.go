@@ -34,6 +34,7 @@ import (
 	pbp2p "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
 	pbrpc "github.com/prysmaticlabs/prysm/proto/beacon/rpc/v1"
 	slashpb "github.com/prysmaticlabs/prysm/proto/slashing"
+	"github.com/prysmaticlabs/prysm/shared"
 	"github.com/prysmaticlabs/prysm/shared/featureconfig"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/traceutil"
@@ -68,6 +69,7 @@ type Service struct {
 	blockReceiver           blockchain.BlockReceiver
 	powChainService         powchain.Chain
 	chainStartFetcher       powchain.ChainStartFetcher
+	svcRegistry             *shared.ServiceRegistry
 	mockEth1Votes           bool
 	enableDebugRPCEndpoints bool
 	attestationsPool        attestations.Pool
@@ -134,6 +136,7 @@ type Config struct {
 	BlockNotifier           blockfeed.Notifier
 	OperationNotifier       opfeed.Notifier
 	StateGen                *stategen.State
+	SvcRegistry             *shared.ServiceRegistry
 }
 
 // NewService instantiates a new RPC service instance that will
@@ -176,6 +179,7 @@ func NewService(ctx context.Context, cfg *Config) *Service {
 		slasherCert:             cfg.SlasherCert,
 		stateGen:                cfg.StateGen,
 		enableDebugRPCEndpoints: cfg.EnableDebugRPCEndpoints,
+		svcRegistry:             cfg.SvcRegistry,
 		connectedRPCClients:     make(map[net.Addr]bool),
 	}
 }
