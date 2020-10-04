@@ -2,15 +2,16 @@ package beaconv1
 
 import (
 	"context"
-	"errors"
-
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	ptypes "github.com/gogo/protobuf/types"
+	"github.com/pkg/errors"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1"
+	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/shared/bytesutil"
+	"github.com/prysmaticlabs/prysm/shared/params"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // GetGenesis retrieves details of the chain's genesis which can be used to identify chain.
@@ -34,29 +35,59 @@ func (bs *Server) GetFinalityCheckpoints(ctx context.Context, req *ethpb.StateRe
 	return nil, errors.New("unimplemented")
 }
 
-State identifier. Can be one of: "head" (canonical head in node's view), "genesis", "finalized", "justified", <slot>, <hex encoded stateRoot with 0x prefix>.
-
-Example : head
-
-func (bs *Server) getState(stateId []byte) *state.BeaconState {
-	switch string(stateId) {
+func (bs *Server) getState(ctx context.Context, stateId string) (*state.BeaconState, error) {
+	switch stateId {
 	case "head":
-	case "genesis":
-	case "finalized":
-	case "justified":
-	default:
-		if len(bytes) == 32 {
-
-		} else {
-
+		headState, err := bs.HeadFetcher.HeadState(ctx)
+		if err != nil {
+			return nil, errors.Wrap(err, "could not get head state")
 		}
-	}
-	startSlot, err := helpers.StartSlot(requestedEpoch)
-	if err != nil {
-		return nil, err
-	}
-	requestedState, err := bs.StateGen.StateBySlot(ctx, startSlot)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not get state")
+		return headState, nil
+	case "genesis":
+		genesisState, err := bs.StateGen.StateByRoot(ctx, params.BeaconConfig().ZeroHash)
+		if err != nil {
+			return nil, errors.Wrap(err, "could not get genesis checkpoint")
+		}
+		return genesisState, nil
+	case "finalized":
+		finalizedCheckpoint := bs.FinalizationFetcher.FinalizedCheckpt()
+		finalizedState, err := bs.StateGen.StateByRoot(ctx, bytesutil.ToBytes32(finalizedCheckpoint.Root))
+		if err != nil {
+			return nil, errors.Wrap(err, "could not get finalized checkpoint")
+		}
+		return finalizedState, nil
+	case "justified":
+		justifiedCheckpoint := bs.FinalizationFetcher.CurrentJustifiedCheckpt()
+		justifiedState, err := bs.StateGen.StateByRoot(ctx, bytesutil.ToBytes32(justifiedCheckpoint.Root))
+		if err != nil {
+			return nil, errors.Wrap(err, "could not get justified checkpoint")
+		}
+		return justifiedState, nil
+	default:
+		if len([]byte(stateId)) == 32 {
+			requestedState, err := bs.StateGen.StateByRoot(ctx, bytesutil.ToBytes32([]byte(stateId)))
+			if err != nil {
+				return nil, errors.Wrap(err, "could not get state")
+			}
+			return requestedState, nil
+		} else {
+			requestedSlot := bytesutil.FromBytes8([]byte(stateId))
+			requestedEpoch := helpers.SlotToEpoch(requestedSlot)
+			currentEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
+			if requestedEpoch > currentEpoch {
+				return nil, status.Errorf(
+					codes.InvalidArgument,
+					"Cannot retrieve information about an epoch in the future, current epoch %d, requesting %d",
+					currentEpoch,
+					requestedEpoch,
+				)
+			}
+
+			requestedState, err := bs.StateGen.StateBySlot(ctx, requestedSlot)
+			if err != nil {
+				return nil, errors.Wrap(err, "could not get state")
+			}
+			return requestedState, nil
+		}
 	}
 }
