@@ -3,7 +3,14 @@ package beaconv1
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"sort"
+	"strconv"
+	"strings"
+
+	log "github.com/sirupsen/logrus"
+
+	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 
 	"github.com/pkg/errors"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1"
@@ -39,26 +46,11 @@ func (bs *Server) ListValidatorBalances(ctx context.Context, req *ethpb.StateVal
 	balances := requestedState.Balances()
 	balancesCount := len(balances)
 	for _, id := range req.Id {
-		// Skip empty public key.
-		if len([]byte(id)) == 0 {
+		index, err := indexFromValidatorId(requestedState, id)
+		if err != nil {
+			log.Errorf("Could not get index from validator id: %v", err)
 			continue
 		}
-		var index uint64
-		var ok bool
-		// Skip empty public key.
-		if len([]byte(id)) == 48 {
-			pubkeyBytes, err := hex.DecodeString(id)
-			if err != nil {
-				return nil, errors.Wrap(err, "could not decode string")
-			}
-			index, ok = requestedState.ValidatorIndexByPubkey(bytesutil.ToBytes48(pubkeyBytes))
-			if !ok {
-				continue
-			}
-		} else {
-			index = bytesutil.FromBytes8([]byte(id))
-		}
-
 		if index >= uint64(len(balances)) {
 			return nil, status.Errorf(codes.OutOfRange, "Validator index %d >= balance list %d",
 				index, len(balances))
@@ -94,4 +86,31 @@ func (bs *Server) ListValidatorBalances(ctx context.Context, req *ethpb.StateVal
 // ListCommittees retrieves the committees for the given state at the given epoch.
 func (bs *Server) ListCommittees(ctx context.Context, req *ethpb.StateCommitteesRequest) (*ethpb.StateCommitteesResponse, error) {
 	return nil, errors.New("unimplemented")
+}
+
+func indexFromValidatorId(state *state.BeaconState, valId string) (uint64, error) {
+	// Skip empty public key.
+	if valId == "" {
+		return 0, errors.New("empty input")
+	}
+	var index uint64
+	var ok bool
+	// Skip empty public key.
+	if strings.HasPrefix(valId, "0x") {
+		pubkeyBytes, err := hex.DecodeString(valId)
+		if err != nil {
+			return 0, errors.Wrap(err, "could not decode string")
+		}
+		index, ok = state.ValidatorIndexByPubkey(bytesutil.ToBytes48(pubkeyBytes))
+		if !ok {
+			return 0, fmt.Errorf("validator public key %#x not found in state", pubkeyBytes)
+		}
+	} else {
+		idx, err := strconv.Atoi(valId)
+		if err != nil {
+			return 0, errors.Wrap(err, "could not convert to number")
+		}
+		index = uint64(idx)
+	}
+	return index, nil
 }
