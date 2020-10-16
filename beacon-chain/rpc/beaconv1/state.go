@@ -38,7 +38,7 @@ func (bs *Server) GetFinalityCheckpoints(ctx context.Context, req *ethpb.StateRe
 func (bs *Server) getState(ctx context.Context, stateId string) (*state.BeaconState, error) {
 	switch stateId {
 	case "head":
-		headState, err := bs.HeadFetcher.HeadState(ctx)
+		headState, err := bs.ChainInfoFetcher.HeadState(ctx)
 		if err != nil {
 			return nil, errors.Wrap(err, "could not get head state")
 		}
@@ -50,14 +50,14 @@ func (bs *Server) getState(ctx context.Context, stateId string) (*state.BeaconSt
 		}
 		return genesisState, nil
 	case "finalized":
-		finalizedCheckpoint := bs.FinalizationFetcher.FinalizedCheckpt()
+		finalizedCheckpoint := bs.ChainInfoFetcher.FinalizedCheckpt()
 		finalizedState, err := bs.StateGen.StateByRoot(ctx, bytesutil.ToBytes32(finalizedCheckpoint.Root))
 		if err != nil {
 			return nil, errors.Wrap(err, "could not get finalized checkpoint")
 		}
 		return finalizedState, nil
 	case "justified":
-		justifiedCheckpoint := bs.FinalizationFetcher.CurrentJustifiedCheckpt()
+		justifiedCheckpoint := bs.ChainInfoFetcher.CurrentJustifiedCheckpt()
 		justifiedState, err := bs.StateGen.StateByRoot(ctx, bytesutil.ToBytes32(justifiedCheckpoint.Root))
 		if err != nil {
 			return nil, errors.Wrap(err, "could not get justified checkpoint")
