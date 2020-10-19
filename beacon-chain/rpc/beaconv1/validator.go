@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/prysmaticlabs/prysm/proto/migration"
+
 	"github.com/pkg/errors"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
@@ -44,17 +46,7 @@ func (bs *Server) GetValidator(ctx context.Context, req *ethpb.StateValidatorReq
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not get validator at index %d: %v", index, err)
 	}
-
-	validator := &ethpb.Validator{
-		PublicKey:                  val.PublicKey,
-		WithdrawalCredentials:      val.WithdrawalCredentials,
-		EffectiveBalance:           val.EffectiveBalance,
-		Slashed:                    val.Slashed,
-		ActivationEligibilityEpoch: val.ActivationEligibilityEpoch,
-		ActivationEpoch:            val.ActivationEpoch,
-		ExitEpoch:                  val.ExitEpoch,
-		WithdrawableEpoch:          val.WithdrawableEpoch,
-	}
+	validator := migration.V1Alpha1ValidatorToV1(val)
 	validatorContainer := &ethpb.ValidatorContainer{
 		Index:     index,
 		Balance:   0,
@@ -96,21 +88,16 @@ func (bs *Server) ListValidators(ctx context.Context, req *ethpb.StateValidators
 			return nil, status.Errorf(codes.Internal, "Could not get validator at index %d: %v", index, err)
 		}
 
-		validator := &ethpb.Validator{
-			PublicKey:                  val.PublicKey,
-			WithdrawalCredentials:      val.WithdrawalCredentials,
-			EffectiveBalance:           val.EffectiveBalance,
-			Slashed:                    val.Slashed,
-			ActivationEligibilityEpoch: val.ActivationEligibilityEpoch,
-			ActivationEpoch:            val.ActivationEpoch,
-			ExitEpoch:                  val.ExitEpoch,
-			WithdrawableEpoch:          val.WithdrawableEpoch,
+		balance, err := requestedState.BalanceAtIndex(index)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Could not get validator balance at index %d: %v", index, err)
 		}
+
 		validatorsResp = append(validatorsResp, &ethpb.ValidatorContainer{
 			Index:     index,
-			Balance:   0,
+			Balance:   balance,
 			Status:    "",
-			Validator: validator,
+			Validator: migration.V1Alpha1ValidatorToV1(val),
 		})
 	}
 
@@ -206,10 +193,19 @@ func (bs *Server) ListCommittees(ctx context.Context, req *ethpb.StateCommittees
 		)
 	}
 
+	committeesResp := make([]*ethpb.Committee, 0, len(committees))
+	for _, committeesForSlot := range committees {
+		for _, committee := range committeesForSlot {
+			committeesResp = append(committeesResp, &ethpb.Committee{
+				Index:      committee.Index,
+				Slot:       committee.Slot,
+				Validators: committee.Validators,
+			})
+		}
+	}
+
 	return &ethpb.StateCommitteesResponse{
-		Data: []*ethpb.Committee{
-			{},
-		},
+		Data: committeesResp,
 	}, nil
 }
 
@@ -346,4 +342,27 @@ func indexFromValidatorId(state *state.BeaconState, valId string) (uint64, error
 		index = uint64(idx)
 	}
 	return index, nil
+}
+
+func validatorStatus(validator *ethpb.Validator, epoch uint64) ethpb.ValidatorSt {
+	farFutureEpoch := params.BeaconConfig().FarFutureEpoch
+	if validator == nil {
+		return ethpb.ValidatorStatus_UNKNOWN_STATUS
+	}
+	if epoch < validator.ActivationEligibilityEpoch {
+		return ethpb.ValidatorStatus_DEPOSITED
+	}
+	if epoch < validator.ActivationEpoch {
+		return ethpb.ValidatorStatus_PENDING
+	}
+	if validator.ExitEpoch == farFutureEpoch {
+		return ethpb.ValidatorStatus_ACTIVE
+	}
+	if epoch < validator.ExitEpoch {
+		if validator.Slashed {
+			return ethpb.ValidatorStatus_SLASHING
+		}
+		return ethpb.ValidatorStatus_EXITING
+	}
+	return ethpb.ValidatorStatus_EXITED
 }

@@ -8,6 +8,23 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stateutil"
 )
 
+// V1Alpha1ValidatorToV1 converts a v1alpha1 validator proto to v1.
+func V1Alpha1ValidatorToV1(val *ethpb_alpha.Validator) *ethpb.Validator {
+	if val == nil {
+		return &ethpb.Validator{}
+	}
+	return &ethpb.Validator{
+		PublicKey:                  val.PublicKey,
+		WithdrawalCredentials:      val.WithdrawalCredentials,
+		EffectiveBalance:           val.EffectiveBalance,
+		Slashed:                    val.Slashed,
+		ActivationEligibilityEpoch: val.ActivationEligibilityEpoch,
+		ActivationEpoch:            val.ActivationEpoch,
+		ExitEpoch:                  val.ExitEpoch,
+		WithdrawableEpoch:          val.WithdrawableEpoch,
+	}
+}
+
 // V1Alpha1BlockToV1BlockHeader converts a v1alpha1 SignedBeaconBlock proto to a v1 SignedBeaconBlockHeader proto.
 func V1Alpha1BlockToV1BlockHeader(block *ethpb_alpha.SignedBeaconBlock) (*ethpb.SignedBeaconBlockHeader, error) {
 	bodyRoot, err := stateutil.BlockBodyRoot(block.Block.Body)
