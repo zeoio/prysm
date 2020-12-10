@@ -14,6 +14,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/shared"
+	"github.com/prysmaticlabs/prysm/shared/backuputil"
 	"github.com/prysmaticlabs/prysm/shared/cmd"
 	"github.com/prysmaticlabs/prysm/shared/debug"
 	"github.com/prysmaticlabs/prysm/shared/event"
@@ -28,6 +29,7 @@ import (
 	"github.com/prysmaticlabs/prysm/validator/client"
 	"github.com/prysmaticlabs/prysm/validator/db/kv"
 	"github.com/prysmaticlabs/prysm/validator/flags"
+	g "github.com/prysmaticlabs/prysm/validator/graffiti"
 	"github.com/prysmaticlabs/prysm/validator/keymanager"
 	"github.com/prysmaticlabs/prysm/validator/keymanager/imported"
 	"github.com/prysmaticlabs/prysm/validator/rpc"
@@ -98,12 +100,16 @@ func NewValidatorClient(cliCtx *cli.Context) (*ValidatorClient, error) {
 		}
 		return ValidatorClient, nil
 	}
+
+	if cliCtx.IsSet(cmd.ChainConfigFileFlag.Name) {
+		chainConfigFileName := cliCtx.String(cmd.ChainConfigFileFlag.Name)
+		params.LoadChainConfigFile(chainConfigFileName)
+	}
+
 	if err := ValidatorClient.initializeFromCLI(cliCtx); err != nil {
 		return nil, err
 	}
-	if err := ValidatorClient.db.MigrateV2ProposalsProtectionDb(cliCtx.Context); err != nil {
-		return nil, err
-	}
+
 	return ValidatorClient, nil
 }
 
@@ -148,18 +154,12 @@ func (s *ValidatorClient) Close() {
 
 	s.services.StopAll()
 	log.Info("Stopping Prysm validator")
-	if !s.cliCtx.IsSet(flags.InteropNumValidators.Name) {
-		if err := s.wallet.UnlockWalletConfigFile(); err != nil {
-			log.WithError(err).Errorf("Failed to unlock wallet config file.")
-		}
-	}
 	close(s.stop)
 }
 
 func (s *ValidatorClient) initializeFromCLI(cliCtx *cli.Context) error {
 	var keyManager keymanager.IKeymanager
 	var err error
-	var accountsDir string
 	if cliCtx.IsSet(flags.InteropNumValidators.Name) {
 		numValidatorKeys := cliCtx.Uint64(flags.InteropNumValidators.Name)
 		offset := cliCtx.Uint64(flags.InteropStartIndex.Name)
@@ -180,24 +180,23 @@ func (s *ValidatorClient) initializeFromCLI(cliCtx *cli.Context) error {
 			"wallet":          w.AccountsDir(),
 			"keymanager-kind": w.KeymanagerKind().String(),
 		}).Info("Opened validator wallet")
-		keyManager, err = w.InitializeKeymanager(
-			cliCtx.Context, false, /* skipMnemonicConfirm */
-		)
+		keyManager, err = w.InitializeKeymanager(cliCtx.Context)
 		if err != nil {
 			return errors.Wrap(err, "could not read keymanager for wallet")
 		}
-		if err := w.LockWalletConfigFile(cliCtx.Context); err != nil {
-			log.Fatalf("Could not get a lock on wallet file. Please check if you have another validator instance running and using the same wallet: %v", err)
-		}
-		accountsDir = s.wallet.AccountsDir()
 	}
-
-	dataDir := moveDb(cliCtx, accountsDir)
+	dataDir := cliCtx.String(flags.WalletDirFlag.Name)
+	if s.wallet != nil {
+		dataDir = s.wallet.AccountsDir()
+	}
+	if cliCtx.String(cmd.DataDirFlag.Name) != cmd.DefaultDataDir() {
+		dataDir = cliCtx.String(cmd.DataDirFlag.Name)
+	}
 	clearFlag := cliCtx.Bool(cmd.ClearDB.Name)
 	forceClearFlag := cliCtx.Bool(cmd.ForceClearDB.Name)
 	if clearFlag || forceClearFlag {
-		if dataDir == "" {
-			dataDir = cmd.DefaultDataDir()
+		if dataDir == "" && s.wallet != nil {
+			dataDir = s.wallet.AccountsDir()
 			if dataDir == "" {
 				log.Fatal(
 					"Could not determine your system's HOME path, please specify a --datadir you wish " +
@@ -209,6 +208,13 @@ func (s *ValidatorClient) initializeFromCLI(cliCtx *cli.Context) error {
 		if err := clearDB(dataDir, forceClearFlag); err != nil {
 			return err
 		}
+	} else {
+		dataFile := filepath.Join(dataDir, kv.ProtectionDbFileName)
+		if !fileutil.FileExists(dataFile) {
+			log.Warnf("Slashing protection file %s is missing.\n"+
+				"If you changed your --wallet-dir or --datadir, please copy your previous \"validator.db\" file into your current --datadir.\n"+
+				"Disregard this warning if this is the first time you are running this set of keys.", dataFile)
+		}
 	}
 	log.WithField("databasePath", dataDir).Info("Checking DB")
 
@@ -218,7 +224,7 @@ func (s *ValidatorClient) initializeFromCLI(cliCtx *cli.Context) error {
 	}
 	s.db = valDB
 	if !cliCtx.Bool(cmd.DisableMonitoringFlag.Name) {
-		if err := s.registerPrometheusService(); err != nil {
+		if err := s.registerPrometheusService(cliCtx); err != nil {
 			return err
 		}
 	}
@@ -241,29 +247,16 @@ func (s *ValidatorClient) initializeFromCLI(cliCtx *cli.Context) error {
 	return nil
 }
 
-func moveDb(cliCtx *cli.Context, accountsDir string) string {
-	dataDir := cliCtx.String(cmd.DataDirFlag.Name)
-	if accountsDir != "" {
-		dataFile := filepath.Join(dataDir, kv.ProtectionDbFileName)
-		newDataFile := filepath.Join(accountsDir, kv.ProtectionDbFileName)
-		if fileutil.FileExists(dataFile) && !fileutil.FileExists(newDataFile) {
-			log.WithFields(logrus.Fields{
-				"oldDbPath": dataDir,
-				"walletDir": accountsDir,
-			}).Info("Moving validator protection db to wallet dir")
-			err := fileutil.CopyFile(dataFile, newDataFile)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-		dataDir = accountsDir
-	}
-	return dataDir
-}
-
 func (s *ValidatorClient) initializeForWeb(cliCtx *cli.Context) error {
 	var keyManager keymanager.IKeymanager
 	var err error
+	walletDir := cliCtx.String(flags.WalletDirFlag.Name)
+	defaultWalletPasswordFilePath := filepath.Join(walletDir, wallet.DefaultWalletPasswordFile)
+	if fileutil.FileExists(defaultWalletPasswordFilePath) {
+		if err := cliCtx.Set(flags.WalletPasswordFileFlag.Name, defaultWalletPasswordFilePath); err != nil {
+			return errors.Wrap(err, "could not set default wallet password file path")
+		}
+	}
 	// Read the wallet from the specified path.
 	w, err := wallet.OpenWalletOrElseCli(cliCtx, func(cliCtx *cli.Context) (*wallet.Wallet, error) {
 		return nil, nil
@@ -277,20 +270,21 @@ func (s *ValidatorClient) initializeForWeb(cliCtx *cli.Context) error {
 			"wallet":          w.AccountsDir(),
 			"keymanager-kind": w.KeymanagerKind().String(),
 		}).Info("Opened validator wallet")
-		keyManager, err = w.InitializeKeymanager(
-			cliCtx.Context, false, /* skipMnemonicConfirm */
-		)
+		keyManager, err = w.InitializeKeymanager(cliCtx.Context)
 		if err != nil {
 			return errors.Wrap(err, "could not read keymanager for wallet")
 		}
-		if err := w.LockWalletConfigFile(cliCtx.Context); err != nil {
-			log.Fatalf("Could not get a lock on wallet file. Please check if you have another validator instance running and using the same wallet: %v", err)
-		}
 	}
-
+	dataDir := cliCtx.String(flags.WalletDirFlag.Name)
+	if s.wallet != nil {
+		dataDir = s.wallet.AccountsDir()
+	}
+	if cliCtx.String(cmd.DataDirFlag.Name) != cmd.DefaultDataDir() {
+		dataDir = cliCtx.String(cmd.DataDirFlag.Name)
+	}
 	clearFlag := cliCtx.Bool(cmd.ClearDB.Name)
 	forceClearFlag := cliCtx.Bool(cmd.ForceClearDB.Name)
-	dataDir := cliCtx.String(cmd.DataDirFlag.Name)
+
 	if clearFlag || forceClearFlag {
 		if dataDir == "" {
 			dataDir = cmd.DefaultDataDir()
@@ -313,7 +307,7 @@ func (s *ValidatorClient) initializeForWeb(cliCtx *cli.Context) error {
 	}
 	s.db = valDB
 	if !cliCtx.Bool(cmd.DisableMonitoringFlag.Name) {
-		if err := s.registerPrometheusService(); err != nil {
+		if err := s.registerPrometheusService(cliCtx); err != nil {
 			return err
 		}
 	}
@@ -340,10 +334,21 @@ func (s *ValidatorClient) initializeForWeb(cliCtx *cli.Context) error {
 	return nil
 }
 
-func (s *ValidatorClient) registerPrometheusService() error {
+func (s *ValidatorClient) registerPrometheusService(cliCtx *cli.Context) error {
+	var additionalHandlers []prometheus.Handler
+	if cliCtx.IsSet(cmd.EnableBackupWebhookFlag.Name) {
+		additionalHandlers = append(
+			additionalHandlers,
+			prometheus.Handler{
+				Path:    "/db/backup",
+				Handler: backuputil.BackupHandler(s.db, cliCtx.String(cmd.BackupWebhookOutputDir.Name)),
+			},
+		)
+	}
 	service := prometheus.NewService(
 		fmt.Sprintf("%s:%d", s.cliCtx.String(cmd.MonitoringHostFlag.Name), s.cliCtx.Int(flags.MonitoringPortFlag.Name)),
 		s.services,
+		additionalHandlers...,
 	)
 	logrus.AddHook(prometheus.NewLogrusCollector())
 	return s.services.RegisterService(service)
@@ -366,6 +371,17 @@ func (s *ValidatorClient) registerClientService(
 	if err := s.services.FetchService(&sp); err == nil {
 		protector = sp
 	}
+
+	gStruct := &g.Graffiti{}
+	var err error
+	if s.cliCtx.IsSet(flags.GraffitiFileFlag.Name) {
+		n := s.cliCtx.String(flags.GraffitiFileFlag.Name)
+		gStruct, err = g.ParseGraffitiFile(n)
+		if err != nil {
+			log.WithError(err).Warn("Could not parse graffiti file")
+		}
+	}
+
 	v, err := client.NewValidatorService(s.cliCtx.Context, &client.Config{
 		Endpoint:                   endpoint,
 		DataDir:                    dataDir,
@@ -382,6 +398,7 @@ func (s *ValidatorClient) registerClientService(
 		ValDB:                      s.db,
 		UseWeb:                     s.cliCtx.Bool(flags.EnableWebFlag.Name),
 		WalletInitializedFeed:      s.walletInitialized,
+		GraffitiStruct:             gStruct,
 	})
 
 	if err != nil {
@@ -418,28 +435,43 @@ func (s *ValidatorClient) registerRPCService(cliCtx *cli.Context, km keymanager.
 	if err := s.services.FetchService(&vs); err != nil {
 		return err
 	}
+	validatorGatewayHost := cliCtx.String(flags.GRPCGatewayHost.Name)
+	validatorGatewayPort := cliCtx.Int(flags.GRPCGatewayPort.Name)
+	validatorMonitoringHost := cliCtx.String(cmd.MonitoringHostFlag.Name)
+	validatorMonitoringPort := cliCtx.Int(flags.MonitoringPortFlag.Name)
 	rpcHost := cliCtx.String(flags.RPCHost.Name)
 	rpcPort := cliCtx.Int(flags.RPCPort.Name)
 	nodeGatewayEndpoint := cliCtx.String(flags.BeaconRPCGatewayProviderFlag.Name)
 	walletDir := cliCtx.String(flags.WalletDirFlag.Name)
 	server := rpc.NewServer(cliCtx.Context, &rpc.Config{
-		ValDB:                 s.db,
-		Host:                  rpcHost,
-		Port:                  fmt.Sprintf("%d", rpcPort),
-		WalletInitializedFeed: s.walletInitialized,
-		ValidatorService:      vs,
-		SyncChecker:           vs,
-		GenesisFetcher:        vs,
-		NodeGatewayEndpoint:   nodeGatewayEndpoint,
-		WalletDir:             walletDir,
-		Wallet:                s.wallet,
-		Keymanager:            km,
+		ValDB:                   s.db,
+		Host:                    rpcHost,
+		Port:                    fmt.Sprintf("%d", rpcPort),
+		WalletInitializedFeed:   s.walletInitialized,
+		ValidatorService:        vs,
+		SyncChecker:             vs,
+		GenesisFetcher:          vs,
+		BeaconNodeInfoFetcher:   vs,
+		NodeGatewayEndpoint:     nodeGatewayEndpoint,
+		WalletDir:               walletDir,
+		Wallet:                  s.wallet,
+		Keymanager:              km,
+		ValidatorGatewayHost:    validatorGatewayHost,
+		ValidatorGatewayPort:    validatorGatewayPort,
+		ValidatorMonitoringHost: validatorMonitoringHost,
+		ValidatorMonitoringPort: validatorMonitoringPort,
 	})
 	return s.services.RegisterService(server)
 }
 
 func (s *ValidatorClient) registerRPCGatewayService(cliCtx *cli.Context) error {
 	gatewayHost := cliCtx.String(flags.GRPCGatewayHost.Name)
+	if gatewayHost != flags.DefaultGatewayHost {
+		log.WithField("web-host", gatewayHost).Warn(
+			"You are using a non-default web host. Web traffic is served by HTTP, so be wary of " +
+				"changing this parameter if you are exposing this host to the Internet!",
+		)
+	}
 	gatewayPort := cliCtx.Int(flags.GRPCGatewayPort.Name)
 	rpcHost := cliCtx.String(flags.RPCHost.Name)
 	rpcPort := cliCtx.Int(flags.RPCPort.Name)

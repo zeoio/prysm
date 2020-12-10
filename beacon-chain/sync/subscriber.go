@@ -12,6 +12,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	pb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
+	"github.com/prysmaticlabs/prysm/beacon-chain/flags"
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
 	"github.com/prysmaticlabs/prysm/shared/messagehandler"
 	"github.com/prysmaticlabs/prysm/shared/p2putils"
@@ -31,7 +32,7 @@ type subHandler func(context.Context, proto.Message) error
 func (s *Service) noopValidator(_ context.Context, _ peer.ID, msg *pubsub.Message) pubsub.ValidationResult {
 	m, err := s.decodePubsubMessage(msg)
 	if err != nil {
-		log.WithError(err).Debug("Failed to decode message")
+		log.WithError(err).Debug("Could not decode message")
 		return pubsub.ValidationReject
 	}
 	msg.ValidatorData = m
@@ -65,11 +66,19 @@ func (s *Service) registerSubscribers() {
 		s.validateAttesterSlashing,
 		s.attesterSlashingSubscriber,
 	)
-	s.subscribeDynamicWithSubnets(
-		"/eth2/%x/beacon_attestation_%d",
-		s.validateCommitteeIndexBeaconAttestation,   /* validator */
-		s.committeeIndexBeaconAttestationSubscriber, /* message handler */
-	)
+	if flags.Get().SubscribeToAllSubnets {
+		s.subscribeStaticWithSubnets(
+			"/eth2/%x/beacon_attestation_%d",
+			s.validateCommitteeIndexBeaconAttestation,   /* validator */
+			s.committeeIndexBeaconAttestationSubscriber, /* message handler */
+		)
+	} else {
+		s.subscribeDynamicWithSubnets(
+			"/eth2/%x/beacon_attestation_%d",
+			s.validateCommitteeIndexBeaconAttestation,   /* validator */
+			s.committeeIndexBeaconAttestationSubscriber, /* message handler */
+		)
+	}
 }
 
 // subscribe to a given topic with a given validator and subscription handler.
@@ -87,7 +96,8 @@ func (s *Service) subscribeWithBase(topic string, validator pubsub.ValidatorEx, 
 	log := log.WithField("topic", topic)
 
 	if err := s.p2p.PubSub().RegisterTopicValidator(s.wrapAndReportValidation(topic, validator)); err != nil {
-		log.WithError(err).Error("Failed to register validator")
+		log.WithError(err).Error("Could not register validator for topic")
+		return nil
 	}
 
 	sub, err := s.p2p.SubscribeToTopic(topic)
@@ -95,7 +105,7 @@ func (s *Service) subscribeWithBase(topic string, validator pubsub.ValidatorEx, 
 		// Any error subscribing to a PubSub topic would be the result of a misconfiguration of
 		// libp2p PubSub library or a subscription request to a topic that fails to match the topic
 		// subscription filter.
-		log.WithError(err).WithField("topic", topic).Error("Failed to subscribe to topic")
+		log.WithError(err).WithField("topic", topic).Error("Could not subscribe topic")
 		return nil
 	}
 
@@ -125,7 +135,7 @@ func (s *Service) subscribeWithBase(topic string, validator pubsub.ValidatorEx, 
 
 		if err := handle(ctx, msg.ValidatorData.(proto.Message)); err != nil {
 			traceutil.AnnotateError(span, err)
-			log.WithError(err).Debug("Failed to handle p2p pubsub")
+			log.WithError(err).Debug("Could not handle p2p pubsub")
 			messageFailedProcessingCounter.WithLabelValues(topic).Inc()
 			return
 		}
@@ -140,6 +150,9 @@ func (s *Service) subscribeWithBase(topic string, validator pubsub.ValidatorEx, 
 				if err != pubsub.ErrSubscriptionCancelled { // Only log a warning on unexpected errors.
 					log.WithError(err).Warn("Subscription next failed")
 				}
+				// Cancel subscription in the event of an error, as we are
+				// now exiting topic event loop.
+				sub.Cancel()
 				return
 			}
 
@@ -169,7 +182,7 @@ func (s *Service) wrapAndReportValidation(topic string, v pubsub.ValidatorEx) (s
 			return pubsub.ValidationReject
 		}
 		// Ignore any messages received before chainstart.
-		if !s.chainStarted {
+		if s.chainStarted.IsNotSet() {
 			messageFailedValidationCounter.WithLabelValues(topic).Inc()
 			return pubsub.ValidationIgnore
 		}
@@ -201,7 +214,7 @@ func (s *Service) subscribeStaticWithSubnets(topic string, validator pubsub.Vali
 				ticker.Done()
 				return
 			case <-ticker.C():
-				if s.chainStarted && s.initialSync.Syncing() {
+				if s.chainStarted.IsSet() && s.initialSync.Syncing() {
 					continue
 				}
 				// Check every slot that there are enough peers
@@ -251,7 +264,7 @@ func (s *Service) subscribeDynamicWithSubnets(
 				ticker.Done()
 				return
 			case currentSlot := <-ticker.C():
-				if s.chainStarted && s.initialSync.Syncing() {
+				if s.chainStarted.IsSet() && s.initialSync.Syncing() {
 					continue
 				}
 
@@ -294,7 +307,7 @@ func (s *Service) reValidateSubscriptions(subscriptions map[uint64]*pubsub.Subsc
 			v.Cancel()
 			fullTopic := fmt.Sprintf(topicFormat, digest, k) + s.p2p.Encoding().ProtocolSuffix()
 			if err := s.p2p.PubSub().UnregisterTopicValidator(fullTopic); err != nil {
-				log.WithError(err).Error("Failed to unregister topic validator")
+				log.WithError(err).Error("Could not unregister topic validator")
 			}
 			delete(subscriptions, k)
 		}

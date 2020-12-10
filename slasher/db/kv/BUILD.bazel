@@ -5,6 +5,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "attester_slashings.go",
+        "backup.go",
         "block_header.go",
         "chain_data.go",
         "highest_attestation.go",
@@ -21,6 +22,7 @@ go_library(
         "//beacon-chain/core/helpers:go_default_library",
         "//proto/slashing:go_default_library",
         "//shared/bytesutil:go_default_library",
+        "//shared/fileutil:go_default_library",
         "//shared/hashutil:go_default_library",
         "//shared/params:go_default_library",
         "//slasher/cache:go_default_library",
@@ -41,6 +43,7 @@ go_test(
     name = "go_default_test",
     srcs = [
         "attester_slashings_test.go",
+        "backup_test.go",
         "benchmark_test.go",
         "block_header_test.go",
         "chain_data_test.go",
@@ -57,7 +60,6 @@ go_test(
         "//proto/slashing:go_default_library",
         "//shared/bytesutil:go_default_library",
         "//shared/params:go_default_library",
-        "//shared/testutil:go_default_library",
         "//shared/testutil/assert:go_default_library",
         "//shared/testutil/require:go_default_library",
         "//slasher/db/types:go_default_library",

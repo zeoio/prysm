@@ -9,6 +9,7 @@ import (
 
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	slashpb "github.com/prysmaticlabs/prysm/proto/slashing"
+	"github.com/prysmaticlabs/prysm/shared/backuputil"
 	"github.com/prysmaticlabs/prysm/slasher/db/types"
 	detectionTypes "github.com/prysmaticlabs/prysm/slasher/detection/attestations/types"
 )
@@ -22,8 +23,8 @@ type ReadOnlyDatabase interface {
 	GetLatestEpochDetected(ctx context.Context) (uint64, error)
 
 	// BlockHeader related methods.
-	BlockHeaders(ctx context.Context, epoch uint64, validatorID uint64) ([]*ethpb.SignedBeaconBlockHeader, error)
-	HasBlockHeader(ctx context.Context, epoch uint64, validatorID uint64) bool
+	BlockHeaders(ctx context.Context, slot uint64, validatorID uint64) ([]*ethpb.SignedBeaconBlockHeader, error)
+	HasBlockHeader(ctx context.Context, slot uint64, validatorID uint64) bool
 
 	// IndexedAttestations related methods.
 	HasIndexedAttestation(ctx context.Context, att *ethpb.IndexedAttestation) (bool, error)
@@ -97,6 +98,7 @@ type FullAccessDatabase interface {
 // Database represents a full access database with the proper DB helper functions.
 type Database interface {
 	io.Closer
+	backuputil.BackupExporter
 	FullAccessDatabase
 	DatabasePath() string
 	ClearDB() error

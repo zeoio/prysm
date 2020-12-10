@@ -3,7 +3,9 @@ package peers_test
 import (
 	"context"
 	"crypto/rand"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -418,6 +420,52 @@ func TestPeerConnectionStatuses(t *testing.T) {
 	assert.Equal(t, numPeersAll, len(p.All()), "Unexpected number of peers")
 }
 
+func TestPeerValidTime(t *testing.T) {
+	maxBadResponses := 2
+	p := peers.NewStatus(context.Background(), &peers.StatusConfig{
+		PeerLimit: 30,
+		ScorerParams: &scorers.Config{
+			BadResponsesScorerConfig: &scorers.BadResponsesScorerConfig{
+				Threshold: maxBadResponses,
+			},
+		},
+	})
+
+	numPeersConnected := 6
+	for i := 0; i < numPeersConnected; i++ {
+		addPeer(t, p, peers.PeerConnected)
+	}
+
+	allPeers := p.All()
+
+	// Add for 1st peer
+	p.SetNextValidTime(allPeers[0], time.Now().Add(-1*time.Second))
+	p.SetNextValidTime(allPeers[1], time.Now().Add(1*time.Second))
+	p.SetNextValidTime(allPeers[2], time.Now().Add(10*time.Second))
+
+	assert.Equal(t, true, p.IsReadyToDial(allPeers[0]))
+	assert.Equal(t, false, p.IsReadyToDial(allPeers[1]))
+	assert.Equal(t, false, p.IsReadyToDial(allPeers[2]))
+
+	nextVal, err := p.NextValidTime(allPeers[3])
+	require.NoError(t, err)
+	assert.Equal(t, true, nextVal.IsZero())
+	assert.Equal(t, true, p.IsReadyToDial(allPeers[3]))
+
+	nextVal, err = p.NextValidTime(allPeers[4])
+	require.NoError(t, err)
+	assert.Equal(t, true, nextVal.IsZero())
+	assert.Equal(t, true, p.IsReadyToDial(allPeers[4]))
+
+	nextVal, err = p.NextValidTime(allPeers[5])
+	require.NoError(t, err)
+	assert.Equal(t, true, nextVal.IsZero())
+	assert.Equal(t, true, p.IsReadyToDial(allPeers[5]))
+
+	// Now confirm the states
+	assert.Equal(t, numPeersConnected, len(p.Connected()), "Unexpected number of connected peers")
+}
+
 func TestPrune(t *testing.T) {
 	maxBadResponses := 2
 	p := peers.NewStatus(context.Background(), &peers.StatusConfig{
@@ -468,6 +516,45 @@ func TestPrune(t *testing.T) {
 	// Last peer has been removed.
 	_, err = scorer.Count(thirdPID)
 	assert.ErrorContains(t, "peer unknown", err)
+}
+
+func TestPeerIPTracker(t *testing.T) {
+	maxBadResponses := 2
+	p := peers.NewStatus(context.Background(), &peers.StatusConfig{
+		PeerLimit: 30,
+		ScorerParams: &scorers.Config{
+			BadResponsesScorerConfig: &scorers.BadResponsesScorerConfig{
+				Threshold: maxBadResponses,
+			},
+		},
+	})
+
+	badIP := "211.227.218.116"
+	badPeers := []peer.ID{}
+	for i := 0; i < peers.ColocationLimit+10; i++ {
+		port := strconv.Itoa(3000 + i)
+		addr, err := ma.NewMultiaddr("/ip4/" + badIP + "/tcp/" + port)
+		if err != nil {
+			t.Fatal(err)
+		}
+		badPeers = append(badPeers, createPeer(t, p, addr))
+	}
+	for _, pr := range badPeers {
+		assert.Equal(t, true, p.IsBad(pr), "peer with bad ip is not bad")
+	}
+
+	// Add in bad peers, so that our records are trimmed out
+	// from the peer store.
+	for i := 0; i < p.MaxPeerLimit()+100; i++ {
+		// Peer added to peer handler.
+		pid := addPeer(t, p, peers.PeerConnected)
+		p.Scorers().BadResponsesScorer().Increment(pid)
+	}
+	p.Prune()
+
+	for _, pr := range badPeers {
+		assert.Equal(t, false, p.IsBad(pr), "peer with good ip is regarded as bad")
+	}
 }
 
 func TestTrimmedOrderedPeers(t *testing.T) {
@@ -784,5 +871,17 @@ func addPeer(t *testing.T, p *peers.Status, state peerdata.PeerConnectionState) 
 		SeqNumber: 0,
 		Attnets:   bitfield.NewBitvector64(),
 	})
+	return id
+}
+
+func createPeer(t *testing.T, p *peers.Status, addr ma.Multiaddr) peer.ID {
+	mhBytes := []byte{0x11, 0x04}
+	idBytes := make([]byte, 4)
+	_, err := rand.Read(idBytes)
+	require.NoError(t, err)
+	mhBytes = append(mhBytes, idBytes...)
+	id, err := peer.IDFromBytes(mhBytes)
+	require.NoError(t, err)
+	p.Add(new(enr.Record), id, addr, network.DirUnknown)
 	return id
 }

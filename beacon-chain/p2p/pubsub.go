@@ -5,8 +5,11 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
+	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
+	"github.com/prysmaticlabs/prysm/beacon-chain/flags"
+	"github.com/prysmaticlabs/prysm/shared/featureconfig"
 	"github.com/prysmaticlabs/prysm/shared/hashutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
 )
@@ -51,7 +54,7 @@ func (s *Service) PublishToTopic(ctx context.Context, topic string, data []byte,
 
 	// Wait for at least 1 peer to be available to receive the published message.
 	for {
-		if len(topicHandle.ListPeers()) > 0 {
+		if len(topicHandle.ListPeers()) > 0 || flags.Get().MinimumSyncPeers == 0 {
 			return topicHandle.Publish(ctx, data, opts...)
 		}
 		select {
@@ -71,7 +74,22 @@ func (s *Service) SubscribeToTopic(topic string, opts ...pubsub.SubOpt) (*pubsub
 	if err != nil {
 		return nil, err
 	}
+	if featureconfig.Get().EnablePeerScorer {
+		scoringParams := topicScoreParams(topic)
+		if scoringParams != nil {
+			if err = topicHandle.SetScoreParams(scoringParams); err != nil {
+				return nil, err
+			}
+		}
+	}
 	return topicHandle.Subscribe(opts...)
+}
+
+// peerInspector will scrape all the relevant scoring data and add it to our
+// peer handler.
+// TODO(#6043): Add hooks to add in peer inspector to our global peer handler.
+func (s *Service) peerInspector(peerMap map[peer.ID]*pubsub.PeerScoreSnapshot) {
+	// no-op
 }
 
 // Content addressable ID function.
@@ -98,8 +116,20 @@ func msgIDFunction(pmsg *pubsub_pb.Message) string {
 }
 
 func setPubSubParameters() {
-	pubsub.GossipSubDlo = 5
-	pubsub.GossipSubHeartbeatInterval = 700 * time.Millisecond
+	heartBeatInterval := 700 * time.Millisecond
+	pubsub.GossipSubDlo = 6
+	pubsub.GossipSubD = 8
+	pubsub.GossipSubHeartbeatInterval = heartBeatInterval
 	pubsub.GossipSubHistoryLength = 6
 	pubsub.GossipSubHistoryGossip = 3
+	pubsub.TimeCacheDuration = 550 * heartBeatInterval
+
+	// Set a larger gossip history to ensure that slower
+	// messages have a longer time to be propagated. This
+	// comes with the tradeoff of larger memory usage and
+	// size of the seen message cache.
+	if featureconfig.Get().EnableLargerGossipHistory {
+		pubsub.GossipSubHistoryLength = 12
+		pubsub.GossipSubHistoryLength = 5
+	}
 }

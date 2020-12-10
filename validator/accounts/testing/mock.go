@@ -1,11 +1,8 @@
 package mock
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"io"
-	"io/ioutil"
 	"strings"
 	"sync"
 
@@ -73,22 +70,7 @@ func (m *Wallet) ReadFileAtPath(_ context.Context, pathName, fileName string) ([
 	return nil, errors.New("no files found")
 }
 
-// ReadEncryptedSeedFromDisk --
-func (m *Wallet) ReadEncryptedSeedFromDisk(_ context.Context) (io.ReadCloser, error) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	return ioutil.NopCloser(bytes.NewReader(m.EncryptedSeedFile)), nil
-}
-
-// WriteEncryptedSeedToDisk --
-func (m *Wallet) WriteEncryptedSeedToDisk(_ context.Context, encoded []byte) error {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	m.EncryptedSeedFile = encoded
-	return nil
-}
-
 // InitializeKeymanager --
-func (m *Wallet) InitializeKeymanager(_ context.Context, _ bool) (keymanager.IKeymanager, error) {
+func (m *Wallet) InitializeKeymanager(_ context.Context) (keymanager.IKeymanager, error) {
 	return nil, nil
 }

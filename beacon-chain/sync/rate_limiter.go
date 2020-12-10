@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/beacon-chain/flags"
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
+	p2ptypes "github.com/prysmaticlabs/prysm/beacon-chain/p2p/types"
 	"github.com/sirupsen/logrus"
 	"github.com/trailofbits/go-mutexasserts"
 )
@@ -68,7 +69,6 @@ func (l *limiter) validateRequest(stream network.Stream, amt uint64) error {
 	defer l.RUnlock()
 
 	topic := string(stream.Protocol())
-	log := l.topicLogger(topic)
 
 	collector, err := l.retrieveCollector(topic)
 	if err != nil {
@@ -82,16 +82,8 @@ func (l *limiter) validateRequest(stream network.Stream, amt uint64) error {
 	}
 	if amt > uint64(remaining) {
 		l.p2p.Peers().Scorers().BadResponsesScorer().Increment(stream.Conn().RemotePeer())
-		if l.p2p.Peers().IsBad(stream.Conn().RemotePeer()) {
-			log.Debug("Disconnecting bad peer")
-			defer func() {
-				if err := l.p2p.Disconnect(stream.Conn().RemotePeer()); err != nil {
-					log.WithError(err).Debug("Failed to disconnect peer")
-				}
-			}()
-		}
-		writeErrorResponseToStream(responseCodeInvalidRequest, rateLimitedError, stream, l.p2p)
-		return errors.New(rateLimitedError)
+		writeErrorResponseToStream(responseCodeInvalidRequest, p2ptypes.ErrRateLimited.Error(), stream, l.p2p)
+		return p2ptypes.ErrRateLimited
 	}
 	return nil
 }

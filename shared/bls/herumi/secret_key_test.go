@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/prysmaticlabs/prysm/shared/bls/common"
+
 	"github.com/prysmaticlabs/prysm/shared/bls/herumi"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
@@ -11,7 +13,9 @@ import (
 )
 
 func TestMarshalUnmarshal(t *testing.T) {
-	b := herumi.RandKey().Marshal()
+	priv, err := herumi.RandKey()
+	require.NoError(t, err)
+	b := priv.Marshal()
 	b32 := bytesutil.ToBytes32(b)
 	pk, err := herumi.SecretKeyFromBytes(b32[:])
 	require.NoError(t, err)
@@ -48,7 +52,7 @@ func TestSecretKeyFromBytes(t *testing.T) {
 		{
 			name:  "Bad",
 			input: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-			err:   errors.New("could not unmarshal bytes into secret key: err blsSecretKeyDeserialize ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+			err:   common.ErrSecretUnmarshal,
 		},
 		{
 			name:  "Good",
@@ -70,9 +74,10 @@ func TestSecretKeyFromBytes(t *testing.T) {
 }
 
 func TestSerialize(t *testing.T) {
-	rk := herumi.RandKey()
+	rk, err := herumi.RandKey()
+	require.NoError(t, err)
 	b := rk.Marshal()
 
-	_, err := herumi.SecretKeyFromBytes(b)
+	_, err = herumi.SecretKeyFromBytes(b)
 	assert.NoError(t, err)
 }

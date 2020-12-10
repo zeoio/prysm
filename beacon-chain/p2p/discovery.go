@@ -68,7 +68,7 @@ func (s *Service) listenForNewNodes() {
 		if s.ctx.Err() != nil {
 			break
 		}
-		if s.isPeerAtLimit() {
+		if s.isPeerAtLimit(false /* inbound */) {
 			// Pause the main loop for a period to stop looking
 			// for new peers.
 			log.Trace("Not looking for peers, at peer limit")
@@ -227,7 +227,8 @@ func (s *Service) startDiscoveryV5(
 // 2) Peer has a valid IP and TCP port set in their enr.
 // 3) Peer hasn't been marked as 'bad'
 // 4) Peer is not currently active or connected.
-// 5) Peer's fork digest in their ENR matches that of
+// 5) Peer is ready to receive incoming connections.
+// 6) Peer's fork digest in their ENR matches that of
 // 	  our localnodes.
 func (s *Service) filterPeer(node *enode.Node) bool {
 	// ignore nodes with no ip address stored.
@@ -255,6 +256,9 @@ func (s *Service) filterPeer(node *enode.Node) bool {
 	if s.host.Network().Connectedness(peerData.ID) == network.Connected {
 		return false
 	}
+	if !s.peers.IsReadyToDial(peerData.ID) {
+		return false
+	}
 	nodeENR := node.Record()
 	// Decide whether or not to connect to peer that does not
 	// match the proper fork ENR data with our local node.
@@ -272,9 +276,14 @@ func (s *Service) filterPeer(node *enode.Node) bool {
 // This checks our set max peers in our config, and
 // determines whether our currently connected and
 // active peers are above our set max peer limit.
-func (s *Service) isPeerAtLimit() bool {
+func (s *Service) isPeerAtLimit(inbound bool) bool {
 	numOfConns := len(s.host.Network().Peers())
 	maxPeers := int(s.cfg.MaxPeers)
+	// If we are measuring the limit for inbound peers
+	// we apply the high watermark buffer.
+	if inbound {
+		maxPeers += highWatermarkBuffer
+	}
 	activePeers := len(s.Peers().Active())
 
 	return activePeers >= maxPeers || numOfConns >= maxPeers

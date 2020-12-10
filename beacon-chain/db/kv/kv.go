@@ -13,6 +13,7 @@ import (
 	prombolt "github.com/prysmaticlabs/prombbolt"
 	"github.com/prysmaticlabs/prysm/beacon-chain/cache"
 	"github.com/prysmaticlabs/prysm/beacon-chain/db/iface"
+	"github.com/prysmaticlabs/prysm/shared/fileutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	bolt "go.etcd.io/bbolt"
 )
@@ -23,9 +24,13 @@ const (
 	// VotesCacheSize with 1M validators will be 8MB.
 	VotesCacheSize = 1 << 23
 	// NumOfVotes specifies the vote cache size.
-	NumOfVotes       = 1 << 20
-	databaseFileName = "beaconchain.db"
-	boltAllocSize    = 8 * 1024 * 1024
+	NumOfVotes = 1 << 20
+	// BeaconNodeDbDirName is the name of the directory containing the beacon node database.
+	BeaconNodeDbDirName = "beaconchaindata"
+	// DatabaseFileName is the name of the beacon node database.
+	DatabaseFileName = "beaconchain.db"
+
+	boltAllocSize = 8 * 1024 * 1024
 )
 
 // BlockCacheSize specifies 1000 slots worth of blocks cached, which
@@ -46,10 +51,16 @@ type Store struct {
 // path specified, creates the kv-buckets based on the schema, and stores
 // an open connection db object as a property of the Store struct.
 func NewKVStore(dirPath string, stateSummaryCache *cache.StateSummaryCache) (*Store, error) {
-	if err := os.MkdirAll(dirPath, params.BeaconIoConfig().ReadWriteExecutePermissions); err != nil {
+	hasDir, err := fileutil.HasDir(dirPath)
+	if err != nil {
 		return nil, err
 	}
-	datafile := path.Join(dirPath, databaseFileName)
+	if !hasDir {
+		if err := fileutil.MkdirAll(dirPath); err != nil {
+			return nil, err
+		}
+	}
+	datafile := path.Join(dirPath, DatabaseFileName)
 	boltDB, err := bolt.Open(datafile, params.BeaconIoConfig().ReadWritePermissions, &bolt.Options{Timeout: 1 * time.Second, InitialMmapSize: 10e6})
 	if err != nil {
 		if errors.Is(err, bolt.ErrTimeout) {
@@ -127,7 +138,7 @@ func (s *Store) ClearDB() error {
 		return nil
 	}
 	prometheus.Unregister(createBoltCollector(s.db))
-	if err := os.Remove(path.Join(s.databasePath, databaseFileName)); err != nil {
+	if err := os.Remove(path.Join(s.databasePath, DatabaseFileName)); err != nil {
 		return errors.Wrap(err, "could not remove database file")
 	}
 	return nil

@@ -31,7 +31,7 @@ var (
 
 const eth1LookBackPeriod = 100
 const eth1DataSavingInterval = 100
-const eth1HeaderReqLimit = 1000
+const defaultEth1HeaderReqLimit = uint64(1000)
 const depositlogRequestLimit = 10000
 
 // Eth2GenesisPowchainInfo retrieves the genesis time and eth1 block number of the beacon chain
@@ -81,14 +81,7 @@ func (s *Service) ProcessLog(ctx context.Context, depositLog gethTypes.Log) erro
 			return errors.Wrap(err, "Could not process deposit log")
 		}
 		if s.lastReceivedMerkleIndex%eth1DataSavingInterval == 0 {
-			eth1Data := &protodb.ETH1ChainData{
-				CurrentEth1Data:   s.latestEth1Data,
-				ChainstartData:    s.chainStartData,
-				BeaconState:       s.preGenesisState.InnerStateUnsafe(), // I promise not to mutate it!
-				Trie:              s.depositTrie.ToProto(),
-				DepositContainers: s.depositCache.AllDepositContainers(ctx),
-			}
-			return s.beaconDB.SavePowchainData(ctx, eth1Data)
+			return s.savePowchainData(ctx)
 		}
 		return nil
 	}
@@ -149,16 +142,6 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 	deposit := &ethpb.Deposit{
 		Data:  depositData,
 		Proof: proof,
-	}
-
-	// Make sure duplicates are rejected pre-chainstart.
-	if !s.chainStartData.Chainstarted {
-		var pubkey = fmt.Sprintf("%#x", depositData.PublicKey)
-		if s.depositCache.PubkeyInChainstart(ctx, pubkey) {
-			log.WithField("publicKey", pubkey).Debug("Pubkey has already been submitted for chainstart")
-		} else {
-			s.depositCache.MarkPubkeyForChainstart(ctx, pubkey)
-		}
 	}
 
 	// We always store all historical deposits in the DB.
@@ -241,6 +224,11 @@ func (s *Service) ProcessChainStart(genesisTime uint64, eth1BlockHash [32]byte, 
 			StartTime: chainStartTime,
 		},
 	})
+	if err := s.savePowchainData(s.ctx); err != nil {
+		// continue on, if the save fails as this will get re-saved
+		// in the next interval.
+		log.Error(err)
+	}
 }
 
 func (s *Service) createGenesisTime(timeStamp uint64) uint64 {
@@ -287,12 +275,8 @@ func (s *Service) processPastLogs(ctx context.Context) error {
 		return err
 	}
 	for currentBlockNum < latestFollowHeight {
-		// stop requesting, if we have all the logs
-		if logCount == uint64(s.lastReceivedMerkleIndex+1) {
-			break
-		}
 		start := currentBlockNum
-		end := currentBlockNum + eth1HeaderReqLimit
+		end := currentBlockNum + s.eth1HeaderReqLimit
 		// Appropriately bound the request, as we do not
 		// want request blocks beyond the current follow distance.
 		if end > latestFollowHeight {
@@ -346,21 +330,29 @@ func (s *Service) processPastLogs(ctx context.Context) error {
 	}
 
 	s.latestEth1Data.LastRequestedBlock = currentBlockNum
-	currentState, err := s.beaconDB.HeadState(ctx)
+
+	c, err := s.beaconDB.FinalizedCheckpoint(ctx)
 	if err != nil {
-		return errors.Wrap(err, "could not get head state")
+		return err
 	}
-
-	if currentState != nil && currentState.Eth1DepositIndex() > 0 {
-		s.depositCache.PrunePendingDeposits(ctx, int64(currentState.Eth1DepositIndex()))
+	fRoot := bytesutil.ToBytes32(c.Root)
+	// Return if no checkpoint exists yet.
+	if fRoot == params.BeaconConfig().ZeroHash {
+		return nil
 	}
-
+	fState, err := s.stateGen.StateByRoot(ctx, fRoot)
+	if err != nil {
+		return err
+	}
+	if fState != nil && fState.Eth1DepositIndex() > 0 {
+		s.depositCache.PrunePendingDeposits(ctx, int64(fState.Eth1DepositIndex()))
+	}
 	return nil
 }
 
-// requestBatchedLogs requests and processes all the logs from the period
-// last polled to now.
-func (s *Service) requestBatchedLogs(ctx context.Context) error {
+// requestBatchedHeadersAndLogs requests and processes all the headers and
+// logs from the period last polled to now.
+func (s *Service) requestBatchedHeadersAndLogs(ctx context.Context) error {
 	// We request for the nth block behind the current head, in order to have
 	// stabilized logs when we retrieve it from the 1.0 chain.
 
@@ -369,7 +361,12 @@ func (s *Service) requestBatchedLogs(ctx context.Context) error {
 		return err
 	}
 	for i := s.latestEth1Data.LastRequestedBlock + 1; i <= requestedBlock; i++ {
-		err := s.ProcessETH1Block(ctx, big.NewInt(int64(i)))
+		// Cache eth1 block header here.
+		_, err := s.BlockHashByHeight(ctx, big.NewInt(int64(i)))
+		if err != nil {
+			return err
+		}
+		err = s.ProcessETH1Block(ctx, big.NewInt(int64(i)))
 		if err != nil {
 			return err
 		}
@@ -495,4 +492,16 @@ func (s *Service) checkForChainstart(blockHash [32]byte, blockNumber *big.Int, b
 		s.chainStartData.GenesisTime = genesisTime
 		s.ProcessChainStart(s.chainStartData.GenesisTime, blockHash, blockNumber)
 	}
+}
+
+// save all powchain related metadata to disk.
+func (s *Service) savePowchainData(ctx context.Context) error {
+	eth1Data := &protodb.ETH1ChainData{
+		CurrentEth1Data:   s.latestEth1Data,
+		ChainstartData:    s.chainStartData,
+		BeaconState:       s.preGenesisState.InnerStateUnsafe(), // I promise not to mutate it!
+		Trie:              s.depositTrie.ToProto(),
+		DepositContainers: s.depositCache.AllDepositContainers(ctx),
+	}
+	return s.beaconDB.SavePowchainData(ctx, eth1Data)
 }

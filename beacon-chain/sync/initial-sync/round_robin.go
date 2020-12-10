@@ -14,7 +14,6 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/state"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
-	"github.com/prysmaticlabs/prysm/shared/featureconfig"
 	"github.com/sirupsen/logrus"
 )
 
@@ -44,15 +43,37 @@ func (s *Service) roundRobinSync(genesis time.Time) error {
 	defer state.SkipSlotCache.Enable()
 
 	s.counter = ratecounter.NewRateCounter(counterSeconds * time.Second)
-	s.lastProcessedSlot = s.chain.HeadSlot()
+
+	// Step 1 - Sync to end of finalized epoch.
+	if err := s.syncToFinalizedEpoch(ctx, genesis); err != nil {
+		return err
+	}
+
+	// Already at head, no need for 2nd phase.
+	if s.chain.HeadSlot() == helpers.SlotsSince(genesis) {
+		return nil
+	}
+
+	// Step 2 - sync to head from majority of peers (from no less than MinimumSyncPeers*2 peers)
+	// having the same world view on non-finalized epoch.
+	return s.syncToNonFinalizedEpoch(ctx, genesis)
+}
+
+// syncToFinalizedEpoch sync from head to best known finalized epoch.
+func (s *Service) syncToFinalizedEpoch(ctx context.Context, genesis time.Time) error {
 	highestFinalizedSlot, err := helpers.StartSlot(s.highestFinalizedEpoch() + 1)
 	if err != nil {
 		return err
 	}
+	if s.chain.HeadSlot() >= highestFinalizedSlot {
+		// No need to sync, already synced to the finalized slot.
+		log.Debug("Already synced to finalized epoch")
+		return nil
+	}
 	queue := newBlocksQueue(ctx, &blocksQueueConfig{
 		p2p:                 s.p2p,
-		headFetcher:         s.chain,
-		finalizationFetcher: s.chain,
+		db:                  s.db,
+		chain:               s.chain,
 		highestExpectedSlot: highestFinalizedSlot,
 		mode:                modeStopOnFinalizedEpoch,
 	})
@@ -60,7 +81,6 @@ func (s *Service) roundRobinSync(genesis time.Time) error {
 		return err
 	}
 
-	// Step 1 - Sync to end of finalized epoch.
 	for data := range queue.fetchedData {
 		s.processFetchedData(ctx, genesis, s.chain.HeadSlot(), data)
 	}
@@ -73,17 +93,16 @@ func (s *Service) roundRobinSync(genesis time.Time) error {
 		log.WithError(err).Debug("Error stopping queue")
 	}
 
-	// Already at head, no need for 2nd phase.
-	if s.chain.HeadSlot() == helpers.SlotsSince(genesis) {
-		return nil
-	}
+	return nil
+}
 
-	// Step 2 - sync to head from majority of peers (from no less than MinimumSyncPeers*2 peers) having the same
-	// world view on non-finalized epoch.
-	queue = newBlocksQueue(ctx, &blocksQueueConfig{
+// syncToNonFinalizedEpoch sync from head to best known non-finalized epoch supported by majority
+// of peers (no less than MinimumSyncPeers*2 peers).
+func (s *Service) syncToNonFinalizedEpoch(ctx context.Context, genesis time.Time) error {
+	queue := newBlocksQueue(ctx, &blocksQueueConfig{
 		p2p:                 s.p2p,
-		headFetcher:         s.chain,
-		finalizationFetcher: s.chain,
+		db:                  s.db,
+		chain:               s.chain,
 		highestExpectedSlot: helpers.SlotsSince(genesis),
 		mode:                modeNonConstrained,
 	})
@@ -111,7 +130,7 @@ func (s *Service) processFetchedData(
 
 	// Use Batch Block Verify to process and verify batches directly.
 	if err := s.processBatchedBlocks(ctx, genesis, data.blocks, s.chain.ReceiveBlockBatch); err != nil {
-		log.WithField("err", err.Error()).Warn("Batch is not processed")
+		log.WithError(err).Warn("Batch is not processed")
 	}
 }
 
@@ -121,15 +140,25 @@ func (s *Service) processFetchedDataRegSync(
 	defer s.updatePeerScorerStats(data.pid, startSlot)
 
 	blockReceiver := s.chain.ReceiveBlock
+	invalidBlocks := 0
 	for _, blk := range data.blocks {
 		if err := s.processBlock(ctx, genesis, blk, blockReceiver); err != nil {
-			if errors.Is(err, errBlockAlreadyProcessed) {
-				log.WithField("err", err.Error()).Debug("Block is not processed")
-			} else {
-				log.WithField("err", err.Error()).Warn("Block is not processed")
+			switch {
+			case errors.Is(err, errBlockAlreadyProcessed):
+				log.WithError(err).Debug("Block is not processed")
+				invalidBlocks++
+			case errors.Is(err, errParentDoesNotExist):
+				log.WithError(err).Debug("Block is not processed")
+				invalidBlocks++
+			default:
+				log.WithError(err).Warn("Block is not processed")
 			}
 			continue
 		}
+	}
+	// Add more visible logging if all blocks cannot be processed.
+	if len(data.blocks) == invalidBlocks {
+		log.WithField("error", "Range had no valid blocks to process").Warn("Range is not processed")
 	}
 }
 
@@ -204,13 +233,9 @@ func (s *Service) processBlock(
 	s.logSyncStatus(genesis, blk.Block, blkRoot)
 	parentRoot := bytesutil.ToBytes32(blk.Block.ParentRoot)
 	if !s.db.HasBlock(ctx, parentRoot) && !s.chain.HasInitSyncBlock(parentRoot) {
-		return fmt.Errorf("beacon node doesn't have a block in db with root %#x", blk.Block.ParentRoot)
+		return fmt.Errorf("%w: %#x", errParentDoesNotExist, blk.Block.ParentRoot)
 	}
-	if err := blockReceiver(ctx, blk, blkRoot); err != nil {
-		return err
-	}
-	s.lastProcessedSlot = blk.Block.Slot
-	return nil
+	return blockReceiver(ctx, blk, blkRoot)
 }
 
 func (s *Service) processBatchedBlocks(ctx context.Context, genesis time.Time,
@@ -223,7 +248,8 @@ func (s *Service) processBatchedBlocks(ctx context.Context, genesis time.Time,
 	if err != nil {
 		return err
 	}
-	for s.lastProcessedSlot >= firstBlock.Block.Slot && s.isProcessedBlock(ctx, firstBlock, blkRoot) {
+	headSlot := s.chain.HeadSlot()
+	for headSlot >= firstBlock.Block.Slot && s.isProcessedBlock(ctx, firstBlock, blkRoot) {
 		if len(blks) == 1 {
 			return errors.New("no good blocks in batch")
 		}
@@ -237,7 +263,7 @@ func (s *Service) processBatchedBlocks(ctx context.Context, genesis time.Time,
 	s.logBatchSyncStatus(genesis, blks, blkRoot)
 	parentRoot := bytesutil.ToBytes32(firstBlock.Block.ParentRoot)
 	if !s.db.HasBlock(ctx, parentRoot) && !s.chain.HasInitSyncBlock(parentRoot) {
-		return fmt.Errorf("beacon node doesn't have a block in db with root %#x", firstBlock.Block.ParentRoot)
+		return fmt.Errorf("%w: %#x", errParentDoesNotExist, firstBlock.Block.ParentRoot)
 	}
 	blockRoots := make([][32]byte, len(blks))
 	blockRoots[0] = blkRoot
@@ -253,17 +279,12 @@ func (s *Service) processBatchedBlocks(ctx context.Context, genesis time.Time,
 		}
 		blockRoots[i] = blkRoot
 	}
-	if err := bFunc(ctx, blks, blockRoots); err != nil {
-		return err
-	}
-	lastBlk := blks[len(blks)-1]
-	s.lastProcessedSlot = lastBlk.Block.Slot
-	return nil
+	return bFunc(ctx, blks, blockRoots)
 }
 
 // updatePeerScorerStats adjusts monitored metrics for a peer.
 func (s *Service) updatePeerScorerStats(pid peer.ID, startSlot uint64) {
-	if !featureconfig.Get().EnablePeerScorer || pid == "" {
+	if pid == "" {
 		return
 	}
 	headSlot := s.chain.HeadSlot()
@@ -278,7 +299,11 @@ func (s *Service) updatePeerScorerStats(pid peer.ID, startSlot uint64) {
 
 // isProcessedBlock checks DB and local cache for presence of a given block, to avoid duplicates.
 func (s *Service) isProcessedBlock(ctx context.Context, blk *eth.SignedBeaconBlock, blkRoot [32]byte) bool {
-	if blk.Block.Slot <= s.lastProcessedSlot && (s.db.HasBlock(ctx, blkRoot) || s.chain.HasInitSyncBlock(blkRoot)) {
+	finalizedSlot, err := helpers.StartSlot(s.chain.FinalizedCheckpt().Epoch)
+	if err != nil {
+		return false
+	}
+	if blk.Block.Slot <= finalizedSlot || (s.db.HasBlock(ctx, blkRoot) || s.chain.HasInitSyncBlock(blkRoot)) {
 		return true
 	}
 	return false

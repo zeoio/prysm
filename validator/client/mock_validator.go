@@ -17,7 +17,6 @@ type FakeValidator struct {
 	WaitForActivationCalled           bool
 	WaitForChainStartCalled           bool
 	WaitForSyncCalled                 bool
-	WaitForSyncedCalled               bool
 	SlasherReadyCalled                bool
 	NextSlotCalled                    bool
 	CanonicalHeadSlotCalled           bool
@@ -28,6 +27,7 @@ type FakeValidator struct {
 	ProposeBlockCalled                bool
 	LogValidatorGainsAndLossesCalled  bool
 	SaveProtectionsCalled             bool
+	DeleteProtectionCalled            bool
 	SlotDeadlineCalled                bool
 	ProposeBlockArg1                  uint64
 	AttestToBlockHeadArg1             uint64
@@ -42,6 +42,10 @@ type FakeValidator struct {
 	PubkeyToIndexMap                  map[[48]byte]uint64
 	PubkeysToStatusesMap              map[[48]byte]ethpb.ValidatorStatus
 }
+
+type ctxKey string
+
+var allValidatorsAreExitedCtxKey = ctxKey("exited")
 
 // Done for mocking.
 func (fv *FakeValidator) Done() {
@@ -69,12 +73,6 @@ func (fv *FakeValidator) WaitForActivation(_ context.Context) error {
 // WaitForSync for mocking.
 func (fv *FakeValidator) WaitForSync(_ context.Context) error {
 	fv.WaitForSyncCalled = true
-	return nil
-}
-
-// WaitForSynced for mocking.
-func (fv *FakeValidator) WaitForSynced(_ context.Context) error {
-	fv.WaitForSyncedCalled = true
 	return nil
 }
 
@@ -121,10 +119,9 @@ func (fv *FakeValidator) LogValidatorGainsAndLosses(_ context.Context, _ uint64)
 	return nil
 }
 
-// SaveProtections for mocking.
-func (fv *FakeValidator) SaveProtections(_ context.Context) error {
-	fv.SaveProtectionsCalled = true
-	return nil
+// ResetAttesterProtectionData for mocking.
+func (fv *FakeValidator) ResetAttesterProtectionData() {
+	fv.DeleteProtectionCalled = true
 }
 
 // RolesAt for mocking.
@@ -175,4 +172,12 @@ func (fv *FakeValidator) PubkeysToIndices(_ context.Context) map[[48]byte]uint64
 // PubkeysToStatuses for mocking.
 func (fv *FakeValidator) PubkeysToStatuses(_ context.Context) map[[48]byte]ethpb.ValidatorStatus {
 	return fv.PubkeysToStatusesMap
+}
+
+// AllValidatorsAreExited for mocking
+func (fv *FakeValidator) AllValidatorsAreExited(ctx context.Context) (bool, error) {
+	if ctx.Value(allValidatorsAreExitedCtxKey) == nil {
+		return false, nil
+	}
+	return ctx.Value(allValidatorsAreExitedCtxKey).(bool), nil
 }

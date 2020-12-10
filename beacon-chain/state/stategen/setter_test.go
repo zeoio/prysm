@@ -6,6 +6,7 @@ import (
 
 	"github.com/prysmaticlabs/prysm/beacon-chain/cache"
 	testDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
+	pb "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
@@ -182,7 +183,11 @@ func TestEnableSaveHotStateToDB_Disabled(t *testing.T) {
 	db, _ := testDB.SetupDB(t)
 	service := New(db, cache.NewStateSummaryCache())
 	service.saveHotStateDB.enabled = true
-	service.saveHotStateDB.savedStateRoots = [][32]byte{{'a'}}
+	b := testutil.NewBeaconBlock()
+	require.NoError(t, db.SaveBlock(ctx, b))
+	r, err := b.Block.HashTreeRoot()
+	require.NoError(t, err)
+	service.saveHotStateDB.savedStateRoots = [][32]byte{r}
 	require.NoError(t, service.DisableSaveHotStateToDB(ctx))
 	require.LogsContain(t, hook, "Exiting mode to save hot states in DB")
 	require.Equal(t, false, service.saveHotStateDB.enabled)
@@ -197,4 +202,20 @@ func TestEnableSaveHotStateToDB_AlreadyDisabled(t *testing.T) {
 	require.NoError(t, service.DisableSaveHotStateToDB(ctx))
 	require.LogsDoNotContain(t, hook, "Exiting mode to save hot states in DB")
 	require.Equal(t, false, service.saveHotStateDB.enabled)
+}
+
+func TestState_SaveStateSummariesToDB(t *testing.T) {
+	ctx := context.Background()
+	db, _ := testDB.SetupDB(t)
+	service := New(db, cache.NewStateSummaryCache())
+
+	r := [32]byte{'a'}
+	s := &pb.StateSummary{Root: r[:], Slot: 1}
+	service.stateSummaryCache.Put(r, s)
+	require.Equal(t, false, service.beaconDB.HasStateSummary(ctx, r))
+	require.Equal(t, true, service.stateSummaryCache.Has(r))
+
+	require.NoError(t, service.SaveStateSummariesToDB(ctx))
+	require.Equal(t, true, service.beaconDB.HasStateSummary(ctx, r))
+	require.Equal(t, false, service.stateSummaryCache.Has(r))
 }

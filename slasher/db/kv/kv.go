@@ -6,15 +6,22 @@ import (
 	"context"
 	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/pkg/errors"
+	"github.com/prysmaticlabs/prysm/shared/fileutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/slasher/cache"
 	bolt "go.etcd.io/bbolt"
 	"go.opencensus.io/trace"
 )
 
-var databaseFileName = "slasher.db"
+const (
+	// SlasherDbDirName is the name of the directory containing the slasher database.
+	SlasherDbDirName = "slasherdata"
+	// DatabaseFileName is the name of the slasher database.
+	DatabaseFileName = "slasher.db"
+)
 
 // Store defines an implementation of the slasher Database interface
 // using BoltDB as the underlying persistent kv-store for eth2.
@@ -66,7 +73,7 @@ func (db *Store) ClearDB() error {
 	if _, err := os.Stat(db.databasePath); os.IsNotExist(err) {
 		return nil
 	}
-	return os.Remove(db.databasePath)
+	return os.Remove(filepath.Join(db.databasePath, DatabaseFileName))
 }
 
 // DatabasePath at which this database writes files.
@@ -87,10 +94,17 @@ func createBuckets(tx *bolt.Tx, buckets ...[]byte) error {
 // path specified, creates the kv-buckets based on the schema, and stores
 // an open connection db object as a property of the Store struct.
 func NewKVStore(dirPath string, cfg *Config) (*Store, error) {
-	if err := os.MkdirAll(dirPath, params.BeaconIoConfig().ReadWriteExecutePermissions); err != nil {
+	hasDir, err := fileutil.HasDir(dirPath)
+	if err != nil {
 		return nil, err
 	}
-	datafile := path.Join(dirPath, databaseFileName)
+	if !hasDir {
+		if err := fileutil.MkdirAll(dirPath); err != nil {
+			return nil, err
+		}
+	}
+
+	datafile := path.Join(dirPath, DatabaseFileName)
 	boltDB, err := bolt.Open(datafile, params.BeaconIoConfig().ReadWritePermissions, &bolt.Options{Timeout: params.BeaconIoConfig().BoltTimeout})
 	if err != nil {
 		if errors.Is(err, bolt.ErrTimeout) {
@@ -98,7 +112,7 @@ func NewKVStore(dirPath string, cfg *Config) (*Store, error) {
 		}
 		return nil, err
 	}
-	kv := &Store{db: boltDB, databasePath: datafile}
+	kv := &Store{db: boltDB, databasePath: dirPath}
 	kv.EnableSpanCache(true)
 	kv.EnableHighestAttestationCache(true)
 	flatSpanCache, err := cache.NewEpochFlatSpansCache(cfg.SpanCacheSize, persistFlatSpanMapsOnEviction(kv))

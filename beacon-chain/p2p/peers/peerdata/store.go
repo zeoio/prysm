@@ -42,15 +42,17 @@ type Store struct {
 // PeerData aggregates protocol and application level info about a single peer.
 type PeerData struct {
 	// Network related data.
-	Address   ma.Multiaddr
-	Direction network.Direction
-	ConnState PeerConnectionState
-	Enr       *enr.Record
+	Address       ma.Multiaddr
+	Direction     network.Direction
+	ConnState     PeerConnectionState
+	Enr           *enr.Record
+	NextValidTime time.Time
 	// Chain related data.
-	ChainState            *pb.Status
-	MetaData              *pb.MetaData
-	ChainStateLastUpdated time.Time
-	// Scorers related data.
+	MetaData                  *pb.MetaData
+	ChainState                *pb.Status
+	ChainStateLastUpdated     time.Time
+	ChainStateValidationError error
+	// Scorers internal data.
 	BadResponses         int
 	ProcessedBlocks      uint64
 	BlockProviderUpdated time.Time

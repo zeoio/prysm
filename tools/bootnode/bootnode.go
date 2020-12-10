@@ -66,9 +66,6 @@ type handler struct {
 }
 
 func main() {
-	// Using Medalla as the default configuration.
-	params.UseMedallaConfig()
-
 	flag.Parse()
 
 	if *logFileName != "" {

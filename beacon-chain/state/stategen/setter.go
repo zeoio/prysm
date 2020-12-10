@@ -43,6 +43,17 @@ func (s *State) ForceCheckpoint(ctx context.Context, root []byte) error {
 	return s.beaconDB.SaveState(ctx, fs, root32)
 }
 
+// SaveStateSummariesToDB saves cached state summaries to DB.
+func (s *State) SaveStateSummariesToDB(ctx context.Context) error {
+	ctx, span := trace.StartSpan(ctx, "stateGen.SaveStateSummariesToDB")
+	defer span.End()
+	if err := s.beaconDB.SaveStateSummaries(ctx, s.stateSummaryCache.GetAll()); err != nil {
+		return err
+	}
+	s.stateSummaryCache.Clear()
+	return nil
+}
+
 // SaveStateSummary saves the relevant state summary for a block and its corresponding state slot in the
 // state summary cache.
 func (s *State) SaveStateSummary(_ context.Context, blk *ethpb.SignedBeaconBlock, blockRoot [32]byte) {
@@ -66,6 +77,7 @@ func (s *State) saveStateByRoot(ctx context.Context, blockRoot [32]byte, state *
 	s.saveHotStateDB.lock.Lock()
 	if s.saveHotStateDB.enabled && state.Slot()%duration == 0 {
 		if err := s.beaconDB.SaveState(ctx, state, blockRoot); err != nil {
+			s.saveHotStateDB.lock.Unlock()
 			return err
 		}
 		s.saveHotStateDB.savedStateRoots = append(s.saveHotStateDB.savedStateRoots, blockRoot)

@@ -5,30 +5,21 @@ import (
 )
 
 var (
-	// AltonaTestnet flag for the multiclient eth2 testnet configuration.
-	AltonaTestnet = &cli.BoolFlag{
-		Name:  "altona",
-		Usage: "This defines the flag through which we can run on the Altona Multiclient Testnet",
+	// ToledoTestnet flag for the multiclient eth2 testnet.
+	ToledoTestnet = &cli.BoolFlag{
+		Name:  "toledo",
+		Usage: "This defines the flag through which we can run on the Toledo Multiclient Testnet",
 	}
-	// OnyxTestnet flag for the Prysmatic Labs single-client testnet configuration.
-	OnyxTestnet = &cli.BoolFlag{
-		Name:  "onyx",
-		Usage: "This defines the flag through which we can run on the Onyx Prysm Testnet",
+	// PyrmontTestnet flag for the multiclient eth2 testnet.
+	PyrmontTestnet = &cli.BoolFlag{
+		Name:  "pyrmont",
+		Usage: "This defines the flag through which we can run on the Pyrmont Multiclient Testnet",
 	}
-	// MedallaTestnet flag for the multiclient eth2 testnet.
-	MedallaTestnet = &cli.BoolFlag{
-		Name:  "medalla",
-		Usage: "This defines the flag through which we can run on the Medalla Multiclient Testnet",
-	}
-	// SpadinaTestnet flag for the multiclient eth2 testnet.
-	SpadinaTestnet = &cli.BoolFlag{
-		Name:  "spadina",
-		Usage: "This defines the flag through which we can run on the Spadina Multiclient Testnet",
-	}
-	// ZinkenTestnet flag for the multiclient eth2 testnet.
-	ZinkenTestnet = &cli.BoolFlag{
-		Name:  "zinken",
-		Usage: "This defines the flag through which we can run on the Zinken Multiclient Testnet",
+	// Mainnet flag for easier tooling, no-op
+	Mainnet = &cli.BoolFlag{
+		Value: true,
+		Name:  "mainnet",
+		Usage: "Run on Ethereum 2.0 Main Net. This is the default and can be omitted.",
 	}
 	devModeFlag = &cli.BoolFlag{
 		Name:  "dev",
@@ -47,10 +38,6 @@ var (
 		Usage: "Enables the validator to connect to external slasher to prevent it from " +
 			"transmitting a slashable offence over the network.",
 	}
-	waitForSyncedFlag = &cli.BoolFlag{
-		Name:  "wait-for-synced",
-		Usage: "Uses WaitForSynced for validator startup, to ensure a validator is able to communicate with the beacon node as quick as possible",
-	}
 	disableLookbackFlag = &cli.BoolFlag{
 		Name:  "disable-lookback",
 		Usage: "Disables use of the lookback feature and updates attestation history for validators from head to epoch 0",
@@ -64,9 +51,9 @@ var (
 		Usage: "Which strategy to use when aggregating attestations, one of: naive, max_cover.",
 		Value: "max_cover",
 	}
-	enableBlst = &cli.BoolFlag{
-		Name:  "blst",
-		Usage: "Enable new BLS library, blst, from Supranational",
+	disableBlst = &cli.BoolFlag{
+		Name:  "disable-blst",
+		Usage: "Disables the new BLS library, blst, from Supranational",
 	}
 	disableEth1DataMajorityVote = &cli.BoolFlag{
 		Name:  "disable-eth1-data-majority-vote",
@@ -89,59 +76,65 @@ var (
 		Usage: "Disables pruning deposit proofs when they are no longer needed." +
 			"This will probably significantly increase the amount of memory taken up by deposits.",
 	}
+	disableSyncBacktracking = &cli.BoolFlag{
+		Name:  "disable-sync-backtracking",
+		Usage: "Disable alternative fork exploration backtracking algorithm",
+	}
+	enableLargerGossipHistory = &cli.BoolFlag{
+		Name:  "enable-larger-gossip-history",
+		Usage: "Enables the node to store a larger amount of gossip messages in its cache.",
+	}
+	writeWalletPasswordOnWebOnboarding = &cli.BoolFlag{
+		Name: "write-wallet-password-on-web-onboarding",
+		Usage: "(Danger): Writes the wallet password to the wallet directory on completing Prysm web onboarding. " +
+			"We recommend against this flag unless you are an advanced user.",
+	}
 )
 
 // devModeFlags holds list of flags that are set when development mode is on.
 var devModeFlags = []cli.Flag{
-	enablePeerScorer,
+	enableLargerGossipHistory,
 }
 
 // ValidatorFlags contains a list of all the feature flags that apply to the validator client.
 var ValidatorFlags = append(deprecatedFlags, []cli.Flag{
+	writeWalletPasswordOnWebOnboarding,
 	enableExternalSlasherProtectionFlag,
-	waitForSyncedFlag,
-	AltonaTestnet,
-	OnyxTestnet,
-	MedallaTestnet,
-	SpadinaTestnet,
-	ZinkenTestnet,
+	ToledoTestnet,
+	PyrmontTestnet,
+	Mainnet,
 	disableAccountsV2,
-	enableBlst,
+	disableBlst,
 }...)
 
 // SlasherFlags contains a list of all the feature flags that apply to the slasher client.
 var SlasherFlags = append(deprecatedFlags, []cli.Flag{
 	disableLookbackFlag,
-	AltonaTestnet,
-	OnyxTestnet,
-	MedallaTestnet,
-	SpadinaTestnet,
-	ZinkenTestnet,
+	ToledoTestnet,
+	PyrmontTestnet,
+	Mainnet,
 }...)
 
 // E2EValidatorFlags contains a list of the validator feature flags to be tested in E2E.
-var E2EValidatorFlags = []string{
-	"--wait-for-synced",
-}
+var E2EValidatorFlags = []string{}
 
 // BeaconChainFlags contains a list of all the feature flags that apply to the beacon-chain client.
 var BeaconChainFlags = append(deprecatedFlags, []cli.Flag{
 	devModeFlag,
 	writeSSZStateTransitionsFlag,
 	kafkaBootstrapServersFlag,
-	waitForSyncedFlag,
 	disableGRPCConnectionLogging,
 	attestationAggregationStrategy,
-	AltonaTestnet,
-	OnyxTestnet,
-	MedallaTestnet,
-	SpadinaTestnet,
-	ZinkenTestnet,
-	enableBlst,
+	ToledoTestnet,
+	PyrmontTestnet,
+	Mainnet,
+	disableBlst,
 	disableEth1DataMajorityVote,
 	enablePeerScorer,
+	enableLargerGossipHistory,
 	checkPtInfoCache,
 	disablePruningDepositProofs,
+	disableSyncBacktracking,
 }...)
 
 // E2EBeaconChainFlags contains a list of the beacon chain feature flags to be tested in E2E.

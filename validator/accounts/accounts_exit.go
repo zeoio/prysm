@@ -82,7 +82,7 @@ func prepareWallet(cliCtx *cli.Context) ([][48]byte, keymanager.IKeymanager, err
 		return nil, nil, errors.Wrap(err, "could not open wallet")
 	}
 
-	keymanager, err := w.InitializeKeymanager(cliCtx.Context, false /* skip mnemonic confirm */)
+	keymanager, err := w.InitializeKeymanager(cliCtx.Context)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "could not initialize keymanager")
 	}
@@ -173,7 +173,6 @@ func prepareClients(cliCtx *cli.Context) (*ethpb.BeaconNodeValidatorClient, *eth
 	dialOpts := client.ConstructDialOptions(
 		cliCtx.Int(cmd.GrpcMaxCallRecvMsgSizeFlag.Name),
 		cliCtx.String(flags.CertFlag.Name),
-		strings.Split(cliCtx.String(flags.GrpcHeadersFlag.Name), ","),
 		cliCtx.Uint(flags.GrpcRetriesFlag.Name),
 		cliCtx.Duration(flags.GrpcRetryDelayFlag.Name),
 	)

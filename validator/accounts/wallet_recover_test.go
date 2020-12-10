@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	"github.com/prysmaticlabs/prysm/validator/accounts/wallet"
@@ -27,18 +26,12 @@ type recoverCfgStruct struct {
 }
 
 func setupRecoverCfg(t *testing.T) *recoverCfgStruct {
-	testDir := testutil.TempDir()
+	testDir := t.TempDir()
 	walletDir := filepath.Join(testDir, walletDirName)
 	passwordFilePath := filepath.Join(testDir, passwordFileName)
 	require.NoError(t, ioutil.WriteFile(passwordFilePath, []byte(password), os.ModePerm))
 	mnemonicFilePath := filepath.Join(testDir, mnemonicFileName)
 	require.NoError(t, ioutil.WriteFile(mnemonicFilePath, []byte(mnemonic), os.ModePerm))
-
-	t.Cleanup(func() {
-		assert.NoError(t, os.RemoveAll(walletDir))
-		assert.NoError(t, os.Remove(passwordFilePath))
-		assert.NoError(t, os.Remove(mnemonicFilePath))
-	})
 
 	return &recoverCfgStruct{
 		walletDir:        walletDir,
@@ -54,7 +47,9 @@ func createRecoverCliCtx(t *testing.T, cfg *recoverCfgStruct) *cli.Context {
 	set.String(flags.WalletPasswordFileFlag.Name, cfg.passwordFilePath, "")
 	set.String(flags.KeymanagerKindFlag.Name, keymanager.Derived.String(), "")
 	set.String(flags.MnemonicFileFlag.Name, cfg.mnemonicFilePath, "")
+	set.Bool(flags.SkipMnemonic25thWordCheckFlag.Name, true, "")
 	set.Int64(flags.NumAccountsFlag.Name, cfg.numAccounts, "")
+	assert.NoError(t, set.Set(flags.SkipMnemonic25thWordCheckFlag.Name, "true"))
 	assert.NoError(t, set.Set(flags.WalletDirFlag.Name, cfg.walletDir))
 	assert.NoError(t, set.Set(flags.WalletPasswordFileFlag.Name, cfg.passwordFilePath))
 	assert.NoError(t, set.Set(flags.KeymanagerKindFlag.Name, keymanager.Derived.String()))
@@ -76,21 +71,13 @@ func TestRecoverDerivedWallet(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	encoded, err := w.ReadKeymanagerConfigFromDisk(ctx)
-	assert.NoError(t, err)
-	walletCfg, err := derived.UnmarshalOptionsFile(encoded)
-	assert.NoError(t, err)
-	// We assert the created configuration was as desired.
-	wantCfg := derived.DefaultKeymanagerOpts()
-	assert.DeepEqual(t, wantCfg, walletCfg)
-
-	keymanager, err := w.InitializeKeymanager(cliCtx.Context, true)
+	km, err := w.InitializeKeymanager(cliCtx.Context)
 	require.NoError(t, err)
-	km, ok := keymanager.(*derived.Keymanager)
+	derivedKM, ok := km.(*derived.Keymanager)
 	if !ok {
 		t.Fatal("not a derived keymanager")
 	}
-	names, err := km.ValidatingAccountNames(ctx)
+	names, err := derivedKM.ValidatingAccountNames(ctx)
 	assert.NoError(t, err)
 	require.Equal(t, len(names), int(cfg.numAccounts))
 }

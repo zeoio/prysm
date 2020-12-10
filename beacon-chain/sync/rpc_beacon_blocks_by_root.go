@@ -2,13 +2,11 @@ package sync
 
 import (
 	"context"
-	"io"
 
 	libp2pcore "github.com/libp2p/go-libp2p-core"
-	"github.com/libp2p/go-libp2p-core/helpers"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
+	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p/types"
 	"github.com/prysmaticlabs/prysm/shared/params"
 )
@@ -19,47 +17,26 @@ func (s *Service) sendRecentBeaconBlocksRequest(ctx context.Context, blockRoots 
 	ctx, cancel := context.WithTimeout(ctx, respTimeout)
 	defer cancel()
 
-	stream, err := s.p2p.Send(ctx, blockRoots, p2p.RPCBlocksByRootTopic, id)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := helpers.FullClose(stream); err != nil {
-			log.WithError(err).Debugf("Failed to reset stream with protocol %s", stream.Protocol())
-		}
-	}()
-	for i := 0; i < len(*blockRoots); i++ {
-		isFirstChunk := i == 0
-		blk, err := ReadChunkedBlock(stream, s.p2p, isFirstChunk)
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		// Exit if peer sends more than max request blocks.
-		if uint64(i) >= params.BeaconNetworkConfig().MaxRequestBlocks {
-			break
-		}
-		if err != nil {
-			log.WithError(err).Debug("Unable to retrieve block from stream")
-			return err
-		}
-
+	_, err := SendBeaconBlocksByRootRequest(ctx, s.p2p, id, blockRoots, func(blk *ethpb.SignedBeaconBlock) error {
 		blkRoot, err := blk.Block.HashTreeRoot()
 		if err != nil {
 			return err
 		}
 		s.pendingQueueLock.Lock()
-		s.insertBlockToPendingQueue(blk.Block.Slot, blk, blkRoot)
+		if err := s.insertBlockToPendingQueue(blk.Block.Slot, blk, blkRoot); err != nil {
+			return err
+		}
 		s.pendingQueueLock.Unlock()
-
-	}
-	return nil
+		return nil
+	})
+	return err
 }
 
 // beaconBlocksRootRPCHandler looks up the request blocks from the database from the given block roots.
 func (s *Service) beaconBlocksRootRPCHandler(ctx context.Context, msg interface{}, stream libp2pcore.Stream) error {
 	defer func() {
 		if err := stream.Close(); err != nil {
-			log.WithError(err).Debug("Failed to close stream")
+			log.WithError(err).Debug("Could not close stream")
 		}
 	}()
 	ctx, cancel := context.WithTimeout(ctx, ttfbTimeout)
@@ -81,9 +58,9 @@ func (s *Service) beaconBlocksRootRPCHandler(ctx context.Context, msg interface{
 		s.rateLimiter.add(stream, 1)
 		resp, err := s.generateErrorResponse(responseCodeInvalidRequest, "no block roots provided in request")
 		if err != nil {
-			log.WithError(err).Debug("Failed to generate a response error")
+			log.WithError(err).Debug("Could not generate a response error")
 		} else if _, err := stream.Write(resp); err != nil {
-			log.WithError(err).Debugf("Failed to write to stream")
+			log.WithError(err).Debugf("Could not write to stream")
 		}
 		return errors.New("no block roots provided")
 	}
@@ -91,9 +68,9 @@ func (s *Service) beaconBlocksRootRPCHandler(ctx context.Context, msg interface{
 	if uint64(len(blockRoots)) > params.BeaconNetworkConfig().MaxRequestBlocks {
 		resp, err := s.generateErrorResponse(responseCodeInvalidRequest, "requested more than the max block limit")
 		if err != nil {
-			log.WithError(err).Debug("Failed to generate a response error")
+			log.WithError(err).Debug("Could not generate a response error")
 		} else if _, err := stream.Write(resp); err != nil {
-			log.WithError(err).Debugf("Failed to write to stream")
+			log.WithError(err).Debugf("Could not write to stream")
 		}
 		return errors.New("requested more than the max block limit")
 	}
@@ -102,12 +79,12 @@ func (s *Service) beaconBlocksRootRPCHandler(ctx context.Context, msg interface{
 	for _, root := range blockRoots {
 		blk, err := s.db.Block(ctx, root)
 		if err != nil {
-			log.WithError(err).Debug("Failed to fetch block")
-			resp, err := s.generateErrorResponse(responseCodeServerError, genericError)
+			log.WithError(err).Debug("Could not fetch block")
+			resp, err := s.generateErrorResponse(responseCodeServerError, types.ErrGeneric.Error())
 			if err != nil {
-				log.WithError(err).Debug("Failed to generate a response error")
+				log.WithError(err).Debug("Could not generate a response error")
 			} else if _, err := stream.Write(resp); err != nil {
-				log.WithError(err).Debugf("Failed to write to stream")
+				log.WithError(err).Debugf("Could not write to stream")
 			}
 			return err
 		}

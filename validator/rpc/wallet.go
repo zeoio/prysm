@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"io/ioutil"
-	"strings"
+	"fmt"
+	"path/filepath"
 
 	ptypes "github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	pb "github.com/prysmaticlabs/prysm/proto/validator/accounts/v2"
+	"github.com/prysmaticlabs/prysm/shared/featureconfig"
+	"github.com/prysmaticlabs/prysm/shared/fileutil"
 	"github.com/prysmaticlabs/prysm/shared/rand"
 	"github.com/prysmaticlabs/prysm/validator/accounts"
 	"github.com/prysmaticlabs/prysm/validator/accounts/wallet"
@@ -26,30 +28,10 @@ const (
 	invalidWalletMsg    = "Directory does not contain a valid wallet"
 )
 
-// HasWallet checks if a user has created a wallet before as well as whether or not
-// they have used the web UI before to set a wallet password.
-func (s *Server) HasWallet(_ context.Context, _ *ptypes.Empty) (*pb.HasWalletResponse, error) {
-	exists, err := wallet.Exists(s.walletDir)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not check if wallet exists: %v", err)
-	}
-	if !exists {
-		return &pb.HasWalletResponse{
-			WalletExists: false,
-		}, nil
-	}
-	return &pb.HasWalletResponse{
-		WalletExists: true,
-	}, nil
-}
-
 // CreateWallet via an API request, allowing a user to save a new
 // derived, imported, or remote wallet.
 func (s *Server) CreateWallet(ctx context.Context, req *pb.CreateWalletRequest) (*pb.CreateWalletResponse, error) {
 	walletDir := s.walletDir
-	if strings.TrimSpace(req.WalletPath) != "" {
-		walletDir = req.WalletPath
-	}
 	exists, err := wallet.Exists(walletDir)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not check for existing wallet: %v", err)
@@ -95,6 +77,9 @@ func (s *Server) CreateWallet(ctx context.Context, req *pb.CreateWalletRequest) 
 		}); err != nil {
 			return nil, err
 		}
+		if err := writeWalletPasswordToDisk(walletDir, req.WalletPassword); err != nil {
+			return nil, status.Error(codes.Internal, "Could not write wallet password to disk")
+		}
 		return &pb.CreateWalletResponse{
 			Wallet: &pb.WalletResponse{
 				WalletPath:     walletDir,
@@ -108,13 +93,12 @@ func (s *Server) CreateWallet(ctx context.Context, req *pb.CreateWalletRequest) 
 		if req.Mnemonic == "" {
 			return nil, status.Error(codes.InvalidArgument, "Must include mnemonic in request")
 		}
-		_, depositData, err := accounts.RecoverWallet(ctx, &accounts.RecoverWalletConfig{
+		if _, err := accounts.RecoverWallet(ctx, &accounts.RecoverWalletConfig{
 			WalletDir:      walletDir,
 			WalletPassword: req.WalletPassword,
 			Mnemonic:       req.Mnemonic,
-			NumAccounts:    int64(req.NumAccounts),
-		})
-		if err != nil {
+			NumAccounts:    int(req.NumAccounts),
+		}); err != nil {
 			return nil, err
 		}
 		if err := s.initializeWallet(ctx, &wallet.Config{
@@ -124,24 +108,13 @@ func (s *Server) CreateWallet(ctx context.Context, req *pb.CreateWalletRequest) 
 		}); err != nil {
 			return nil, err
 		}
-
-		depositDataList := make([]*pb.DepositDataResponse_DepositData, len(depositData))
-		for i, item := range depositData {
-			data, err := accounts.DepositDataJSON(item)
-			if err != nil {
-				return nil, err
-			}
-			depositDataList[i] = &pb.DepositDataResponse_DepositData{
-				Data: data,
-			}
+		if err := writeWalletPasswordToDisk(walletDir, req.WalletPassword); err != nil {
+			return nil, status.Error(codes.Internal, "Could not write wallet password to disk")
 		}
 		return &pb.CreateWalletResponse{
 			Wallet: &pb.WalletResponse{
 				WalletPath:     walletDir,
 				KeymanagerKind: pb.KeymanagerKind_DERIVED,
-			},
-			AccountsCreated: &pb.DepositDataResponse{
-				DepositDataList: depositDataList,
 			},
 		}, nil
 	case pb.KeymanagerKind_REMOTE:
@@ -149,11 +122,6 @@ func (s *Server) CreateWallet(ctx context.Context, req *pb.CreateWalletRequest) 
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "Keymanager type %T not yet supported", req.Keymanager)
 	}
-}
-
-// EditConfig allows the user to edit their wallet's keymanageropts.
-func (s *Server) EditConfig(_ context.Context, _ *pb.EditWalletConfigRequest) (*pb.WalletResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "Unimplemented")
 }
 
 // WalletConfig returns the wallet's configuration. If no wallet exists, we return an empty response.
@@ -190,22 +158,9 @@ func (s *Server) WalletConfig(ctx context.Context, _ *ptypes.Empty) (*pb.WalletR
 	case keymanager.Remote:
 		keymanagerKind = pb.KeymanagerKind_REMOTE
 	}
-	f, err := s.wallet.ReadKeymanagerConfigFromDisk(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not read keymanager config from disk: %v", err)
-	}
-	encoded, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not parse keymanager config: %v", err)
-	}
-	var config map[string]string
-	if err := json.Unmarshal(encoded, &config); err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not JSON unmarshal keymanager config: %v", err)
-	}
 	return &pb.WalletResponse{
-		WalletPath:       s.walletDir,
-		KeymanagerKind:   keymanagerKind,
-		KeymanagerConfig: config,
+		WalletPath:     s.walletDir,
+		KeymanagerKind: keymanagerKind,
 	}, nil
 }
 
@@ -308,7 +263,7 @@ func (s *Server) initializeWallet(ctx context.Context, cfg *wallet.Config) error
 	}
 
 	s.walletInitialized = true
-	km, err := w.InitializeKeymanager(ctx, true /* skip mnemonic confirm */)
+	km, err := w.InitializeKeymanager(ctx)
 	if err != nil {
 		return errors.Wrap(err, "could not initialize keymanager")
 	}
@@ -325,4 +280,15 @@ func (s *Server) initializeWallet(ctx context.Context, cfg *wallet.Config) error
 		s.walletInitializedFeed.Send(w)
 	}
 	return nil
+}
+
+func writeWalletPasswordToDisk(walletDir, password string) error {
+	if !featureconfig.Get().WriteWalletPasswordOnWebOnboarding {
+		return nil
+	}
+	passwordFilePath := filepath.Join(walletDir, wallet.DefaultWalletPasswordFile)
+	if fileutil.FileExists(passwordFilePath) {
+		return fmt.Errorf("cannot write wallet password file as it already exists %s", passwordFilePath)
+	}
+	return fileutil.WriteFile(passwordFilePath, []byte(password))
 }

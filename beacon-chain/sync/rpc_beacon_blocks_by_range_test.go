@@ -18,6 +18,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/flags"
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p/encoder"
 	p2ptest "github.com/prysmaticlabs/prysm/beacon-chain/p2p/testing"
+	p2ptypes "github.com/prysmaticlabs/prysm/beacon-chain/p2p/types"
 	pb "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
@@ -272,7 +273,6 @@ func TestRPCBeaconBlocksByRange_ReturnsGenesisBlock(t *testing.T) {
 
 func TestRPCBeaconBlocksByRange_RPCHandlerRateLimitOverflow(t *testing.T) {
 	d, _ := db.SetupDB(t)
-	hook := logTest.NewGlobal()
 	saveBlocks := func(req *pb.BeaconBlocksByRangeRequest) {
 		// Populate the database with blocks that would match the request.
 		parentRoot := [32]byte{}
@@ -340,9 +340,7 @@ func TestRPCBeaconBlocksByRange_RPCHandlerRateLimitOverflow(t *testing.T) {
 		}
 		saveBlocks(req)
 
-		hook.Reset()
 		assert.NoError(t, sendRequest(p1, p2, r, req, true, true))
-		require.LogsDoNotContain(t, hook, "Disconnecting bad peer")
 
 		remainingCapacity := r.rateLimiter.limiterMap[topic].Remaining(p2.PeerID().String())
 		expectedCapacity := int64(0) // Whole capacity is used, but no overflow.
@@ -369,13 +367,10 @@ func TestRPCBeaconBlocksByRange_RPCHandlerRateLimitOverflow(t *testing.T) {
 		}
 		saveBlocks(req)
 
-		hook.Reset()
 		for i := 0; i < p2.Peers().Scorers().BadResponsesScorer().Params().Threshold; i++ {
 			err := sendRequest(p1, p2, r, req, false, true)
-			assert.ErrorContains(t, rateLimitedError, err)
+			assert.ErrorContains(t, p2ptypes.ErrRateLimited.Error(), err)
 		}
-		// Make sure that we were blocked indeed.
-		require.LogsContain(t, hook, "Disconnecting bad peer")
 
 		remainingCapacity := r.rateLimiter.limiterMap[topic].Remaining(p2.PeerID().String())
 		expectedCapacity := int64(0) // Whole capacity is used.
@@ -401,19 +396,15 @@ func TestRPCBeaconBlocksByRange_RPCHandlerRateLimitOverflow(t *testing.T) {
 		}
 		saveBlocks(req)
 
-		hook.Reset()
 		for i := 0; i < flags.Get().BlockBatchLimitBurstFactor; i++ {
 			assert.NoError(t, sendRequest(p1, p2, r, req, true, false))
 		}
-		require.LogsDoNotContain(t, hook, "Disconnecting bad peer")
 
 		// One more request should result in overflow.
-		hook.Reset()
 		for i := 0; i < p2.Peers().Scorers().BadResponsesScorer().Params().Threshold; i++ {
 			err := sendRequest(p1, p2, r, req, false, false)
-			assert.ErrorContains(t, rateLimitedError, err)
+			assert.ErrorContains(t, p2ptypes.ErrRateLimited.Error(), err)
 		}
-		require.LogsContain(t, hook, "Disconnecting bad peer")
 
 		remainingCapacity := r.rateLimiter.limiterMap[topic].Remaining(p2.PeerID().String())
 		expectedCapacity := int64(0) // Whole capacity is used.
@@ -430,7 +421,7 @@ func TestRPCBeaconBlocksByRange_validateRangeRequest(t *testing.T) {
 	tests := []struct {
 		name          string
 		req           *pb.BeaconBlocksByRangeRequest
-		expectedError string
+		expectedError error
 		errorToLog    string
 	}{
 		{
@@ -439,7 +430,7 @@ func TestRPCBeaconBlocksByRange_validateRangeRequest(t *testing.T) {
 				Count: 0,
 				Step:  1,
 			},
-			expectedError: reqError,
+			expectedError: p2ptypes.ErrInvalidRequest,
 			errorToLog:    "validation did not fail with bad count",
 		},
 		{
@@ -448,7 +439,7 @@ func TestRPCBeaconBlocksByRange_validateRangeRequest(t *testing.T) {
 				Count: params.BeaconNetworkConfig().MaxRequestBlocks + 1,
 				Step:  1,
 			},
-			expectedError: reqError,
+			expectedError: p2ptypes.ErrInvalidRequest,
 			errorToLog:    "validation did not fail with bad count",
 		},
 		{
@@ -465,7 +456,7 @@ func TestRPCBeaconBlocksByRange_validateRangeRequest(t *testing.T) {
 				Step:  0,
 				Count: 1,
 			},
-			expectedError: reqError,
+			expectedError: p2ptypes.ErrInvalidRequest,
 			errorToLog:    "validation did not fail with bad step",
 		},
 		{
@@ -474,7 +465,7 @@ func TestRPCBeaconBlocksByRange_validateRangeRequest(t *testing.T) {
 				Step:  rangeLimit + 1,
 				Count: 1,
 			},
-			expectedError: reqError,
+			expectedError: p2ptypes.ErrInvalidRequest,
 			errorToLog:    "validation did not fail with bad step",
 		},
 		{
@@ -492,7 +483,7 @@ func TestRPCBeaconBlocksByRange_validateRangeRequest(t *testing.T) {
 				Step:      1,
 				Count:     1,
 			},
-			expectedError: reqError,
+			expectedError: p2ptypes.ErrInvalidRequest,
 			errorToLog:    "validation did not fail with bad start slot",
 		},
 		{
@@ -501,7 +492,7 @@ func TestRPCBeaconBlocksByRange_validateRangeRequest(t *testing.T) {
 				Step:  1,
 				Count: params.BeaconNetworkConfig().MaxRequestBlocks + 1,
 			},
-			expectedError: reqError,
+			expectedError: p2ptypes.ErrInvalidRequest,
 			errorToLog:    "validation did not fail with bad end slot",
 		},
 		{
@@ -510,7 +501,7 @@ func TestRPCBeaconBlocksByRange_validateRangeRequest(t *testing.T) {
 				Step:  3,
 				Count: uint64(slotsSinceGenesis / 2),
 			},
-			expectedError: reqError,
+			expectedError: p2ptypes.ErrInvalidRequest,
 			errorToLog:    "validation did not fail with bad range",
 		},
 		{
@@ -526,8 +517,8 @@ func TestRPCBeaconBlocksByRange_validateRangeRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expectedError != "" {
-				assert.ErrorContains(t, tt.expectedError, r.validateRangeRequest(tt.req), tt.errorToLog)
+			if tt.expectedError != nil {
+				assert.ErrorContains(t, tt.expectedError.Error(), r.validateRangeRequest(tt.req), tt.errorToLog)
 			} else {
 				assert.NoError(t, r.validateRangeRequest(tt.req), tt.errorToLog)
 			}
