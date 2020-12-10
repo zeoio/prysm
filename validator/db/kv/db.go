@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	prombolt "github.com/prysmaticlabs/prombbolt"
+	"github.com/prysmaticlabs/prysm/shared/fileutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	bolt "go.etcd.io/bbolt"
 )
@@ -22,6 +25,7 @@ type Store struct {
 
 // Close closes the underlying boltdb database.
 func (store *Store) Close() error {
+	prometheus.Unregister(createBoltCollector(store.db))
 	return store.db.Close()
 }
 
@@ -37,6 +41,7 @@ func (store *Store) ClearDB() error {
 	if _, err := os.Stat(store.databasePath); os.IsNotExist(err) {
 		return nil
 	}
+	prometheus.Unregister(createBoltCollector(store.db))
 	return os.Remove(filepath.Join(store.databasePath, ProtectionDbFileName))
 }
 
@@ -58,8 +63,14 @@ func createBuckets(tx *bolt.Tx, buckets ...[]byte) error {
 // path specified, creates the kv-buckets based on the schema, and stores
 // an open connection db object as a property of the Store struct.
 func NewKVStore(dirPath string, pubKeys [][48]byte) (*Store, error) {
-	if err := os.MkdirAll(dirPath, params.BeaconIoConfig().ReadWriteExecutePermissions); err != nil {
+	hasDir, err := fileutil.HasDir(dirPath)
+	if err != nil {
 		return nil, err
+	}
+	if !hasDir {
+		if err := fileutil.MkdirAll(dirPath); err != nil {
+			return nil, err
+		}
 	}
 	datafile := filepath.Join(dirPath, ProtectionDbFileName)
 	boltDB, err := bolt.Open(datafile, params.BeaconIoConfig().ReadWritePermissions, &bolt.Options{Timeout: params.BeaconIoConfig().BoltTimeout})
@@ -75,10 +86,15 @@ func NewKVStore(dirPath string, pubKeys [][48]byte) (*Store, error) {
 	if err := kv.db.Update(func(tx *bolt.Tx) error {
 		return createBuckets(
 			tx,
+			genesisInfoBucket,
 			historicProposalsBucket,
 			historicAttestationsBucket,
 			newHistoricAttestationsBucket,
-			newhistoricProposalsBucket,
+			newHistoricProposalsBucket,
+			lowestSignedSourceBucket,
+			lowestSignedTargetBucket,
+			lowestSignedProposalsBucket,
+			highestSignedProposalsBucket,
 		)
 	}); err != nil {
 		return nil, err
@@ -89,29 +105,24 @@ func NewKVStore(dirPath string, pubKeys [][48]byte) (*Store, error) {
 		if err := kv.UpdatePublicKeysBuckets(pubKeys); err != nil {
 			return nil, err
 		}
-		if err := kv.UpdatePublicKeysNewBuckets(pubKeys); err != nil {
-			return nil, err
-		}
 	}
+
+	err = prometheus.Register(createBoltCollector(kv.db))
 
 	return kv, err
 }
 
-// GetKVStore returns the validator boltDB key-value store from directory. Returns nil if no such store exists.
-func GetKVStore(directory string) (*Store, error) {
-	fileName := filepath.Join(directory, ProtectionDbFileName)
-	if _, err := os.Stat(fileName); os.IsNotExist(err) {
-		return nil, nil
-	}
-	boltDb, err := bolt.Open(fileName, params.BeaconIoConfig().ReadWritePermissions, &bolt.Options{Timeout: params.BeaconIoConfig().BoltTimeout})
-	if err != nil {
-		if errors.Is(err, bolt.ErrTimeout) {
-			return nil, errors.New("cannot obtain database lock, database may be in use by another process")
+// UpdatePublicKeysBuckets for a specified list of keys.
+func (store *Store) UpdatePublicKeysBuckets(pubKeys [][48]byte) error {
+	return store.update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(newHistoricProposalsBucket)
+		for _, pubKey := range pubKeys {
+			if _, err := bucket.CreateBucketIfNotExists(pubKey[:]); err != nil {
+				return errors.Wrap(err, "failed to create proposal history bucket")
+			}
 		}
-		return nil, err
-	}
-
-	return &Store{db: boltDb, databasePath: directory}, nil
+		return nil
+	})
 }
 
 // Size returns the db size in bytes.
@@ -122,4 +133,9 @@ func (store *Store) Size() (int64, error) {
 		return nil
 	})
 	return size, err
+}
+
+// createBoltCollector returns a prometheus collector specifically configured for boltdb.
+func createBoltCollector(db *bolt.DB) prometheus.Collector {
+	return prombolt.New("boltDB", db)
 }

@@ -2,7 +2,9 @@ package client
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,15 +12,17 @@ import (
 	"github.com/golang/mock/gomock"
 	lru "github.com/hashicorp/golang-lru"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
-	slashpb "github.com/prysmaticlabs/prysm/proto/slashing"
 	validatorpb "github.com/prysmaticlabs/prysm/proto/validator/accounts/v2"
 	"github.com/prysmaticlabs/prysm/shared/bls"
+	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/mock"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
+	"github.com/prysmaticlabs/prysm/validator/db/kv"
 	testing2 "github.com/prysmaticlabs/prysm/validator/db/testing"
+	"github.com/prysmaticlabs/prysm/validator/graffiti"
 	logTest "github.com/sirupsen/logrus/hooks/test"
 )
 
@@ -47,7 +51,8 @@ func (m mockSignature) Copy() bls.Signature {
 }
 
 func setup(t *testing.T) (*validator, *mocks, bls.SecretKey, func()) {
-	validatorKey := bls.RandKey()
+	validatorKey, err := bls.RandKey()
+	require.NoError(t, err)
 	pubKey := [48]byte{}
 	copy(pubKey[:], validatorKey.PublicKey().Marshal())
 	valDB := testing2.SetupDB(t, [][48]byte{pubKey})
@@ -62,13 +67,8 @@ func setup(t *testing.T) (*validator, *mocks, bls.SecretKey, func()) {
 
 	aggregatedSlotCommitteeIDCache, err := lru.New(int(params.BeaconConfig().MaxCommitteesPerSlot))
 	require.NoError(t, err)
-	cleanMap := make(map[uint64]uint64)
-	cleanMap[0] = params.BeaconConfig().FarFutureEpoch
-	clean := &slashpb.AttestationHistory{
-		TargetToSource: cleanMap,
-	}
-	attHistoryByPubKey := make(map[[48]byte]*slashpb.AttestationHistory)
-	attHistoryByPubKey[pubKey] = clean
+	attHistoryByPubKey := make(map[[48]byte]kv.EncHistoryData)
+	attHistoryByPubKey[pubKey] = kv.NewAttestationHistoryArray(0)
 	copy(pubKey[:], validatorKey.PublicKey().Marshal())
 	km := &mockKeymanager{
 		keysMap: map[[48]byte]bls.SecretKey{
@@ -77,7 +77,7 @@ func setup(t *testing.T) (*validator, *mocks, bls.SecretKey, func()) {
 	}
 	validator := &validator{
 		db:                             valDB,
-		keyManagerV2:                   km,
+		keyManager:                     km,
 		validatorClient:                m.validatorClient,
 		graffiti:                       []byte{},
 		attLogs:                        make(map[[32]byte]*attSubmitted),
@@ -590,4 +590,118 @@ func TestProposeExit_BroadcastsBlock(t *testing.T) {
 		m.signExitFunc,
 		validatorKey.PublicKey().Marshal(),
 	))
+}
+
+func TestSignBlock(t *testing.T) {
+	validator, m, _, finish := setup(t)
+	defer finish()
+
+	secretKey, err := bls.SecretKeyFromBytes(bytesutil.PadTo([]byte{1}, 32))
+	require.NoError(t, err, "Failed to generate key from bytes")
+	publicKey := secretKey.PublicKey()
+	proposerDomain := make([]byte, 32)
+	m.validatorClient.EXPECT().
+		DomainData(gomock.Any(), gomock.Any()).
+		Return(&ethpb.DomainResponse{SignatureDomain: proposerDomain}, nil)
+	ctx := context.Background()
+	blk := testutil.NewBeaconBlock()
+	blk.Block.Slot = 1
+	blk.Block.ProposerIndex = 100
+	var pubKey [48]byte
+	copy(pubKey[:], publicKey.Marshal())
+	km := &mockKeymanager{
+		keysMap: map[[48]byte]bls.SecretKey{
+			pubKey: secretKey,
+		},
+	}
+	validator.keyManager = km
+	sig, domain, err := validator.signBlock(ctx, pubKey, 0, blk.Block)
+	require.NoError(t, err, "%x,%x,%v", sig, domain.SignatureDomain, err)
+	require.Equal(t, "a049e1dc723e5a8b5bd14f292973572dffd53785ddb337"+
+		"82f20bf762cbe10ee7b9b4f5ae1ad6ff2089d352403750bed402b94b58469c072536"+
+		"faa9a09a88beaff697404ca028b1c7052b0de37dbcff985dfa500459783370312bdd"+
+		"36d6e0f224", hex.EncodeToString(sig))
+	// proposer domain
+	require.DeepEqual(t, proposerDomain, domain.SignatureDomain)
+}
+
+func TestGetGraffiti_Ok(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := &mocks{
+		validatorClient: mock.NewMockBeaconNodeValidatorClient(ctrl),
+	}
+	pubKey := [48]byte{'a'}
+	tests := []struct {
+		name string
+		v    *validator
+		want []byte
+	}{
+		{name: "use default cli graffiti",
+			v: &validator{
+				graffiti: []byte{'b'},
+				graffitiStruct: &graffiti.Graffiti{
+					Default: "c",
+					Random:  []string{"d", "e"},
+					Specific: map[uint64]string{
+						1: "f",
+						2: "g",
+					},
+				},
+			},
+			want: []byte{'b'},
+		},
+		{name: "use default file graffiti",
+			v: &validator{
+				validatorClient: m.validatorClient,
+				graffitiStruct: &graffiti.Graffiti{
+					Default: "c",
+				},
+			},
+			want: []byte{'c'},
+		},
+		{name: "use random file graffiti",
+			v: &validator{
+				validatorClient: m.validatorClient,
+				graffitiStruct: &graffiti.Graffiti{
+					Random:  []string{"d"},
+					Default: "c",
+				},
+			},
+			want: []byte{'d'},
+		},
+		{name: "use validator file graffiti, has validator",
+			v: &validator{
+				validatorClient: m.validatorClient,
+				graffitiStruct: &graffiti.Graffiti{
+					Random:  []string{"d"},
+					Default: "c",
+					Specific: map[uint64]string{
+						1: "f",
+						2: "g",
+					},
+				},
+			},
+			want: []byte{'g'},
+		},
+		{name: "use validator file graffiti, none specified",
+			v: &validator{
+				validatorClient: m.validatorClient,
+				graffitiStruct:  &graffiti.Graffiti{},
+			},
+			want: []byte{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !strings.Contains(tt.name, "use default cli graffiti") {
+				m.validatorClient.EXPECT().
+					ValidatorIndex(gomock.Any(), &ethpb.ValidatorIndexRequest{PublicKey: pubKey[:]}).
+					Return(&ethpb.ValidatorIndexResponse{Index: 2}, nil)
+			}
+			got, err := tt.v.getGraffiti(context.Background(), pubKey)
+			require.NoError(t, err)
+			require.DeepEqual(t, tt.want, got)
+		})
+	}
 }

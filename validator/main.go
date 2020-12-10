@@ -8,7 +8,6 @@ import (
 	"os"
 	"runtime"
 	runtimeDebug "runtime/debug"
-	"time"
 
 	joonix "github.com/joonix/log"
 	"github.com/prysmaticlabs/prysm/shared/cmd"
@@ -19,7 +18,8 @@ import (
 	_ "github.com/prysmaticlabs/prysm/shared/maxprocs"
 	"github.com/prysmaticlabs/prysm/shared/tos"
 	"github.com/prysmaticlabs/prysm/shared/version"
-	v2 "github.com/prysmaticlabs/prysm/validator/accounts/v2"
+	"github.com/prysmaticlabs/prysm/validator/accounts"
+	"github.com/prysmaticlabs/prysm/validator/db"
 	"github.com/prysmaticlabs/prysm/validator/flags"
 	"github.com/prysmaticlabs/prysm/validator/node"
 	"github.com/sirupsen/logrus"
@@ -27,12 +27,14 @@ import (
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
 
-// connTimeout defines a period after which connection to beacon node is cancelled.
-const connTimeout = 10 * time.Second
-
 var log = logrus.WithField("prefix", "main")
 
 func startNode(ctx *cli.Context) error {
+	// verify if ToS accepted
+	if err := tos.VerifyTosAcceptedOrPrompt(ctx); err != nil {
+		return err
+	}
+
 	validatorClient, err := node.NewValidatorClient(ctx)
 	if err != nil {
 		return err
@@ -67,8 +69,9 @@ var appFlags = []cli.Flag{
 	flags.WalletPasswordFileFlag,
 	flags.WalletDirFlag,
 	flags.EnableWebFlag,
-	flags.WebHostFlag,
-	flags.WebPortFlag,
+	flags.GraffitiFileFlag,
+	cmd.BackupWebhookOutputDir,
+	cmd.EnableBackupWebhookFlag,
 	cmd.MinimalConfigFlag,
 	cmd.E2EConfigFlag,
 	cmd.VerbosityFlag,
@@ -105,8 +108,9 @@ func main() {
 	app.Version = version.GetVersion()
 	app.Action = startNode
 	app.Commands = []*cli.Command{
-		v2.WalletCommands,
-		v2.AccountCommands,
+		accounts.WalletCommands,
+		accounts.AccountCommands,
+		db.DatabaseCommands,
 	}
 
 	app.Flags = appFlags
@@ -114,10 +118,6 @@ func main() {
 	app.Before = func(ctx *cli.Context) error {
 		// Load flags from config file, if specified.
 		if err := cmd.LoadFlagsFromConfig(ctx, app.Flags); err != nil {
-			return err
-		}
-		// verify if ToS accepted
-		if err := tos.VerifyTosAcceptedOrPrompt(ctx); err != nil {
 			return err
 		}
 
@@ -172,6 +172,5 @@ func main() {
 
 	if err := app.Run(os.Args); err != nil {
 		log.Error(err.Error())
-		os.Exit(1)
 	}
 }

@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 )
@@ -34,6 +35,16 @@ var (
 		Name:  "datadir",
 		Usage: "Data directory for the databases and keystore",
 		Value: DefaultDataDir(),
+	}
+	// EnableBackupWebhookFlag for users to trigger db backups via an HTTP webhook.
+	EnableBackupWebhookFlag = &cli.BoolFlag{
+		Name:  "enable-db-backup-webhook",
+		Usage: "Serve HTTP handler to initiate database backups. The handler is served on the monitoring port at path /db/backup.",
+	}
+	// BackupWebhookOutputDir to customize the output directory for db backups.
+	BackupWebhookOutputDir = &cli.StringFlag{
+		Name:  "db-backup-output-dir",
+		Usage: "Output directory for db backups",
 	}
 	// EnableTracingFlag defines a flag to enable p2p message tracing.
 	EnableTracingFlag = &cli.BoolFlag{
@@ -84,7 +95,7 @@ var (
 	BootstrapNode = &cli.StringSliceFlag{
 		Name:  "bootstrap-node",
 		Usage: "The address of bootstrap node. Beacon node will connect for peer discovery via DHT.  Multiple nodes can be passed by using the flag multiple times but not comma-separated. You can also pass YAML files containing multiple nodes.",
-		Value: cli.NewStringSlice("enr:-Ku4QMKVC_MowDsmEa20d5uGjrChI0h8_KsKXDmgVQbIbngZV0idV6_RL7fEtZGo-kTNZ5o7_EJI_vCPJ6scrhwX0Z4Bh2F0dG5ldHOIAAAAAAAAAACEZXRoMpD1pf1CAAAAAP__________gmlkgnY0gmlwhBLf22SJc2VjcDI1NmsxoQJxCnE6v_x2ekgY_uoE1rtwzvGy40mq9eD66XfHPBWgIIN1ZHCCD6A"),
+		Value: cli.NewStringSlice(params.BeaconNetworkConfig().BootstrapNodes...),
 	}
 	// RelayNode tells the beacon node which relay node to connect to.
 	RelayNode = &cli.StringFlag{
@@ -168,7 +179,7 @@ var (
 	// LogFormat specifies the log output format.
 	LogFormat = &cli.StringFlag{
 		Name:  "log-format",
-		Usage: "Specify log formatting. Supports: text, json, fluentd.",
+		Usage: "Specify log formatting. Supports: text, json, fluentd, journald.",
 		Value: "text",
 	}
 	// MaxGoroutines specifies the maximum amount of goroutines tolerated, before a status check fails.
@@ -207,6 +218,18 @@ var (
 	AcceptTosFlag = &cli.BoolFlag{
 		Name:  "accept-terms-of-use",
 		Usage: "Accept Terms and Conditions (for non-interactive environments)",
+	}
+	// RestoreSourceFileFlag specifies the filepath to the backed-up database file
+	// which will be used to restore the database.
+	RestoreSourceFileFlag = &cli.StringFlag{
+		Name:  "restore-source-file",
+		Usage: "Filepath to the backed-up database file which will be used to restore the database",
+	}
+	// RestoreTargetDirFlag specifies the target directory of the restored database.
+	RestoreTargetDirFlag = &cli.StringFlag{
+		Name:  "restore-target-dir",
+		Usage: "Target directory of the restored database",
+		Value: DefaultDataDir(),
 	}
 )
 

@@ -16,6 +16,9 @@ import (
 	"go.opencensus.io/trace"
 )
 
+// used to represent errors for inconsistent slot ranges.
+var errInvalidSlotRange = errors.New("invalid end slot and start slot provided")
+
 // Block retrieval by root.
 func (s *Store) Block(ctx context.Context, blockRoot [32]byte) (*ethpb.SignedBeaconBlock, error) {
 	ctx, span := trace.StartSpan(ctx, "BeaconDB.Block")
@@ -58,11 +61,13 @@ func (s *Store) HeadBlock(ctx context.Context) (*ethpb.SignedBeaconBlock, error)
 	return headBlock, err
 }
 
-// Blocks retrieves a list of beacon blocks by filter criteria.
-func (s *Store) Blocks(ctx context.Context, f *filters.QueryFilter) ([]*ethpb.SignedBeaconBlock, error) {
+// Blocks retrieves a list of beacon blocks and its respective roots by filter criteria.
+func (s *Store) Blocks(ctx context.Context, f *filters.QueryFilter) ([]*ethpb.SignedBeaconBlock, [][32]byte, error) {
 	ctx, span := trace.StartSpan(ctx, "BeaconDB.Blocks")
 	defer span.End()
 	blocks := make([]*ethpb.SignedBeaconBlock, 0)
+	blockRoots := make([][32]byte, 0)
+
 	err := s.db.View(func(tx *bolt.Tx) error {
 		bkt := tx.Bucket(blocksBucket)
 
@@ -78,13 +83,18 @@ func (s *Store) Blocks(ctx context.Context, f *filters.QueryFilter) ([]*ethpb.Si
 				return err
 			}
 			blocks = append(blocks, block)
+			blockRoots = append(blockRoots, bytesutil.ToBytes32(keys[i]))
 		}
 		return nil
 	})
-	return blocks, err
+	return blocks, blockRoots, err
 }
 
-// BlockRoots retrieves a list of beacon block roots by filter criteria.
+// BlockRoots retrieves a list of beacon block roots by filter criteria. If the caller
+// requires both the blocks and the block roots for a certain filter they should instead
+// use the Blocks function rather than use BlockRoots. During periods of non finality
+// there are potential race conditions which leads to differing roots when calling the db
+// multiple times for the same filter.
 func (s *Store) BlockRoots(ctx context.Context, f *filters.QueryFilter) ([][32]byte, error) {
 	ctx, span := trace.StartSpan(ctx, "BeaconDB.BlockRoots")
 	defer span.End()
@@ -281,6 +291,9 @@ func (s *Store) HighestSlotBlocksBelow(ctx context.Context, slot uint64) ([]*eth
 		// Iterate through the index, which is in byte sorted order.
 		c := bkt.Cursor()
 		for s, root := c.First(); s != nil; s, root = c.Next() {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			key := bytesutil.BytesToUint64BigEndian(s)
 			if root == nil {
 				continue
@@ -408,20 +421,18 @@ func fetchBlockRootsBySlotRange(
 	}
 	min := bytesutil.Uint64ToBytesBigEndian(startSlot)
 	max := bytesutil.Uint64ToBytesBigEndian(endSlot)
-	var conditional func(key, max []byte) bool
+
+	conditional := func(key, max []byte) bool {
+		return key != nil && bytes.Compare(key, max) <= 0
+	}
+	if endSlot < startSlot {
+		return nil, errInvalidSlotRange
+	}
+	// Return nothing with an end slot of 0.
 	if endSlot == 0 {
-		conditional = func(key, max []byte) bool {
-			return key != nil
-		}
-	} else {
-		conditional = func(key, max []byte) bool {
-			return key != nil && bytes.Compare(key, max) <= 0
-		}
+		return [][]byte{}, nil
 	}
 	rootsRange := (endSlot - startSlot) / step
-	if endSlot < startSlot {
-		rootsRange = 0
-	}
 	roots := make([][]byte, 0, rootsRange)
 	c := bkt.Cursor()
 	for k, v := c.Seek(min); conditional(k, max); k, v = c.Next() {

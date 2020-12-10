@@ -4,6 +4,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
@@ -13,6 +14,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/bls"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
+	"github.com/prysmaticlabs/prysm/shared/rand"
 	"github.com/prysmaticlabs/prysm/shared/timeutils"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
@@ -52,11 +54,19 @@ func (v *validator) ProposeBlock(ctx context.Context, slot uint64, pubKey [48]by
 		return
 	}
 
+	g, err := v.getGraffiti(ctx, pubKey)
+	if err != nil {
+		// Graffiti is not a critical enough to fail block production and cause
+		// validator to miss block reward. When failed, validator should continue
+		// to produce the block.
+		log.WithError(err).Warn("Could not get graffiti")
+	}
+
 	// Request block from beacon node
 	b, err := v.validatorClient.GetBlock(ctx, &ethpb.BlockRequest{
 		Slot:         slot,
 		RandaoReveal: randaoReveal,
-		Graffiti:     v.graffiti,
+		Graffiti:     g,
 	})
 	if err != nil {
 		log.WithField("blockSlot", slot).WithError(err).Error("Failed to request block from beacon node")
@@ -67,12 +77,14 @@ func (v *validator) ProposeBlock(ctx context.Context, slot uint64, pubKey [48]by
 	}
 
 	if err := v.preBlockSignValidations(ctx, pubKey, b); err != nil {
-		log.WithField("slot", b.Slot).WithError(err).Error("Failed block safety check")
+		log.WithFields(
+			blockLogFields(pubKey, b, nil),
+		).WithError(err).Error("Failed block slashing protection check")
 		return
 	}
 
 	// Sign returned block from beacon node
-	sig, err := v.signBlock(ctx, pubKey, epoch, b)
+	sig, domain, err := v.signBlock(ctx, pubKey, epoch, b)
 	if err != nil {
 		log.WithError(err).Error("Failed to sign block")
 		if v.emitAccountMetrics {
@@ -85,8 +97,10 @@ func (v *validator) ProposeBlock(ctx context.Context, slot uint64, pubKey [48]by
 		Signature: sig,
 	}
 
-	if err := v.postBlockSignUpdate(ctx, pubKey, blk); err != nil {
-		log.WithField("slot", blk.Block.Slot).WithError(err).Error("Failed post block signing validations")
+	if err := v.postBlockSignUpdate(ctx, pubKey, blk, domain); err != nil {
+		log.WithFields(
+			blockLogFields(pubKey, b, sig),
+		).WithError(err).Error("Failed block slashing protection check")
 		return
 	}
 
@@ -177,7 +191,7 @@ func (v *validator) signRandaoReveal(ctx context.Context, pubKey [48]byte, epoch
 	if err != nil {
 		return nil, err
 	}
-	randaoReveal, err = v.keyManagerV2.Sign(ctx, &validatorpb.SignRequest{
+	randaoReveal, err = v.keyManager.Sign(ctx, &validatorpb.SignRequest{
 		PublicKey:       pubKey[:],
 		SigningRoot:     root[:],
 		SignatureDomain: domain.SignatureDomain,
@@ -190,30 +204,30 @@ func (v *validator) signRandaoReveal(ctx context.Context, pubKey [48]byte, epoch
 }
 
 // Sign block with proposer domain and private key.
-func (v *validator) signBlock(ctx context.Context, pubKey [48]byte, epoch uint64, b *ethpb.BeaconBlock) ([]byte, error) {
+func (v *validator) signBlock(ctx context.Context, pubKey [48]byte, epoch uint64, b *ethpb.BeaconBlock) ([]byte, *ethpb.DomainResponse, error) {
 	domain, err := v.domainData(ctx, epoch, params.BeaconConfig().DomainBeaconProposer[:])
 	if err != nil {
-		return nil, errors.Wrap(err, domainDataErr)
+		return nil, nil, errors.Wrap(err, domainDataErr)
 	}
 	if domain == nil {
-		return nil, errors.New(domainDataErr)
+		return nil, nil, errors.New(domainDataErr)
 	}
 
 	var sig bls.Signature
 	blockRoot, err := helpers.ComputeSigningRoot(b, domain.SignatureDomain)
 	if err != nil {
-		return nil, errors.Wrap(err, signingRootErr)
+		return nil, nil, errors.Wrap(err, signingRootErr)
 	}
-	sig, err = v.keyManagerV2.Sign(ctx, &validatorpb.SignRequest{
+	sig, err = v.keyManager.Sign(ctx, &validatorpb.SignRequest{
 		PublicKey:       pubKey[:],
 		SigningRoot:     blockRoot[:],
 		SignatureDomain: domain.SignatureDomain,
 		Object:          &validatorpb.SignRequest_Block{Block: b},
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "could not sign block proposal")
+		return nil, nil, errors.Wrap(err, "could not sign block proposal")
 	}
-	return sig.Marshal(), nil
+	return sig.Marshal(), domain, nil
 }
 
 // Sign voluntary exit with proposer domain and private key.
@@ -252,4 +266,41 @@ func signVoluntaryExit(
 		return nil, errors.Wrap(err, signExitErr)
 	}
 	return sig.Marshal(), nil
+}
+
+// Gets the graffiti from cli or file for the validator public key.
+func (v *validator) getGraffiti(ctx context.Context, pubKey [48]byte) ([]byte, error) {
+	// When specified, default graffiti from the command line takes the first priority.
+	if len(v.graffiti) != 0 {
+		return v.graffiti, nil
+	}
+
+	if v.graffitiStruct == nil {
+		return nil, errors.New("graffitiStruct can't be nil")
+	}
+
+	// When specified, individual validator specified graffiti takes the second priority.
+	idx, err := v.validatorClient.ValidatorIndex(ctx, &ethpb.ValidatorIndexRequest{PublicKey: pubKey[:]})
+	if err != nil {
+		return []byte{}, err
+	}
+	g, ok := v.graffitiStruct.Specific[idx.Index]
+	if ok {
+		return []byte(g), nil
+	}
+
+	// When specified, a graffiti from the random list in the file take third priority.
+	if len(v.graffitiStruct.Random) != 0 {
+		r := rand.NewGenerator()
+		r.Seed(time.Now().Unix())
+		i := r.Uint64() % uint64(len(v.graffitiStruct.Random))
+		return []byte(v.graffitiStruct.Random[i]), nil
+	}
+
+	// Finally, default graffiti if specified in the file will be used.
+	if v.graffitiStruct.Default != "" {
+		return []byte(v.graffitiStruct.Default), nil
+	}
+
+	return []byte{}, nil
 }

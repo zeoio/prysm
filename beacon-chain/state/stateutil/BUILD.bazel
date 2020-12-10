@@ -15,10 +15,10 @@ go_library(
     visibility = [
         "//beacon-chain:__subpackages__",
         "//fuzz:__pkg__",
-        "//proto/testing:__subpackages__",
         "//proto/migration:__subpackages__",
-        "//shared/testutil:__subpackages__",
+        "//proto/testing:__subpackages__",
         "//shared/blockutil:__subpackages__",
+        "//shared/testutil:__subpackages__",
         "//slasher:__subpackages__",
         "//tools/blocktree:__pkg__",
         "//tools/pcli:__pkg__",
@@ -35,7 +35,6 @@ go_library(
         "@com_github_dgraph_io_ristretto//:go_default_library",
         "@com_github_pkg_errors//:go_default_library",
         "@com_github_prysmaticlabs_ethereumapis//eth/v1alpha1:go_default_library",
-        "@com_github_prysmaticlabs_go_ssz//:go_default_library",
     ],
 )
 
@@ -44,7 +43,6 @@ go_test(
     srcs = [
         "attestations_test.go",
         "benchmark_test.go",
-        "blocks_test.go",
         "state_root_test.go",
         "stateutil_test.go",
         "trie_helpers_test.go",

@@ -32,26 +32,23 @@ var log = logrus.WithField("prefix", "flags")
 // Flags is a struct to represent which features the client will perform on runtime.
 type Flags struct {
 	// Testnet Flags.
-	AltonaTestnet  bool // AltonaTestnet defines the flag through which we can enable the node to run on the Altona testnet.
-	OnyxTestnet    bool // OnyxTestnet defines the flag through which we can enable the node to run on the Onyx testnet.
-	MedallaTestnet bool // MedallaTestnet defines the flag through which we can enable the node to run on the Medalla testnet.
-	SpadinaTestnet bool // SpadinaTestnet defines the flag through which we can enable the node to run on the Spadina testnet.
-	ZinkenTestnet  bool // ZinkenTestnet defines the flag through which we can enable the node to run on the Zinken testnet.
+	ToledoTestnet  bool // ToledoTestnet defines the flag through which we can enable the node to run on the Toledo testnet.
+	PyrmontTestnet bool // PyrmontTestnet defines the flag through which we can enable the node to run on the Pyrmont testnet.
 
 	// Feature related flags.
-	WriteSSZStateTransitions            bool // WriteSSZStateTransitions to tmp directory.
-	SkipBLSVerify                       bool // Skips BLS verification across the runtime.
-	EnableBlst                          bool // Enables new BLS library from supranational.
-	EnableBackupWebhook                 bool // EnableBackupWebhook to allow database backups to trigger from monitoring port /db/backup.
-	PruneEpochBoundaryStates            bool // PruneEpochBoundaryStates prunes the epoch boundary state before last finalized check point.
-	EnableSnappyDBCompression           bool // EnableSnappyDBCompression in the database.
-	SlasherProtection                   bool // SlasherProtection protects validator fron sending over a slashable offense over the network using external slasher.
-	EnableNoise                         bool // EnableNoise enables the beacon node to use NOISE instead of SECIO when performing a handshake with another peer.
-	WaitForSynced                       bool // WaitForSynced uses WaitForSynced in validator startup to ensure it can communicate with the beacon node as soon as possible.
-	EnableEth1DataMajorityVote          bool // EnableEth1DataMajorityVote uses the Voting With The Majority algorithm to vote for eth1data.
-	EnablePeerScorer                    bool // EnablePeerScorer enables experimental peer scoring in p2p.
-	EnablePruningDepositProofs          bool // EnablePruningDepositProofs enables pruning deposit proofs which significantly reduces the size of a deposit
-	EnableAttBroadcastDiscoveryAttempts bool // EnableAttBroadcastDiscoveryAttempts allows the p2p service to attempt to ensure a subnet peer is present before broadcasting an attestation.
+	WriteSSZStateTransitions           bool // WriteSSZStateTransitions to tmp directory.
+	SkipBLSVerify                      bool // Skips BLS verification across the runtime.
+	EnableBlst                         bool // Enables new BLS library from supranational.
+	PruneEpochBoundaryStates           bool // PruneEpochBoundaryStates prunes the epoch boundary state before last finalized check point.
+	EnableSnappyDBCompression          bool // EnableSnappyDBCompression in the database.
+	SlasherProtection                  bool // SlasherProtection protects validator fron sending over a slashable offense over the network using external slasher.
+	EnableNoise                        bool // EnableNoise enables the beacon node to use NOISE instead of SECIO when performing a handshake with another peer.
+	EnableEth1DataMajorityVote         bool // EnableEth1DataMajorityVote uses the Voting With The Majority algorithm to vote for eth1data.
+	EnablePeerScorer                   bool // EnablePeerScorer enables experimental peer scoring in p2p.
+	EnablePruningDepositProofs         bool // EnablePruningDepositProofs enables pruning deposit proofs which significantly reduces the size of a deposit
+	EnableSyncBacktracking             bool // EnableSyncBacktracking enables backtracking algorithm when searching for alternative forks during initial sync.
+	EnableLargerGossipHistory          bool // EnableLargerGossipHistory increases the gossip history we store in our caches.
+	WriteWalletPasswordOnWebOnboarding bool // WriteWalletPasswordOnWebOnboarding writes the password to disk after Prysm web signup.
 
 	// Logging related toggles.
 	DisableGRPCConnectionLogs bool // Disables logging when a new grpc client has connected.
@@ -94,8 +91,14 @@ func Init(c *Flags) {
 
 // InitWithReset sets the global config and returns function that is used to reset configuration.
 func InitWithReset(c *Flags) func() {
+	var prevConfig Flags
+	if featureConfig != nil {
+		prevConfig = *featureConfig
+	} else {
+		prevConfig = Flags{}
+	}
 	resetFunc := func() {
-		Init(&Flags{})
+		Init(&prevConfig)
 	}
 	Init(c)
 	return resetFunc
@@ -103,36 +106,19 @@ func InitWithReset(c *Flags) func() {
 
 // configureTestnet sets the config according to specified testnet flag
 func configureTestnet(ctx *cli.Context, cfg *Flags) {
-	if ctx.Bool(AltonaTestnet.Name) {
-		log.Warn("Running on Altona Testnet")
-		params.UseAltonaConfig()
-		params.UseAltonaNetworkConfig()
-		cfg.AltonaTestnet = true
-	} else if ctx.Bool(OnyxTestnet.Name) {
-		log.Warn("Running on Onyx Testnet")
-		params.UseOnyxConfig()
-		params.UseOnyxNetworkConfig()
-		cfg.OnyxTestnet = true
-	} else if ctx.Bool(MedallaTestnet.Name) {
-		log.Warn("Running on Medalla Testnet")
-		params.UseMedallaConfig()
-		params.UseMedallaNetworkConfig()
-		cfg.MedallaTestnet = true
-	} else if ctx.Bool(SpadinaTestnet.Name) {
-		log.Warn("Running on Spadina Testnet")
-		params.UseSpadinaConfig()
-		params.UseSpadinaNetworkConfig()
-		cfg.SpadinaTestnet = true
-	} else if ctx.Bool(ZinkenTestnet.Name) {
-		log.Warn("Running on Zinken Testnet")
-		params.UseZinkenConfig()
-		params.UseZinkenNetworkConfig()
-		cfg.ZinkenTestnet = true
+	if ctx.Bool(ToledoTestnet.Name) {
+		log.Warn("Running on Toledo Testnet")
+		params.UseToledoConfig()
+		params.UseToledoNetworkConfig()
+		cfg.ToledoTestnet = true
+	} else if ctx.Bool(PyrmontTestnet.Name) {
+		log.Warn("Running on Pyrmont Testnet")
+		params.UsePyrmontConfig()
+		params.UsePyrmontNetworkConfig()
+		cfg.PyrmontTestnet = true
 	} else {
-		log.Warn("--<testnet> flag is not specified (default: Medalla), this will become required from next release! ")
-		params.UseMedallaConfig()
-		params.UseMedallaNetworkConfig()
-		cfg.MedallaTestnet = true
+		log.Warn("Running on ETH2 Mainnet")
+		params.UseMainnetConfig()
 	}
 }
 
@@ -153,10 +139,6 @@ func ConfigureBeaconChain(ctx *cli.Context) {
 
 	cfg.EnableSSZCache = true
 
-	if ctx.Bool(enableBackupWebhookFlag.Name) {
-		log.Warn("Allowing database backups to be triggered from HTTP webhook.")
-		cfg.EnableBackupWebhook = true
-	}
 	if ctx.String(kafkaBootstrapServersFlag.Name) != "" {
 		log.Warn("Enabling experimental kafka streaming.")
 		cfg.KafkaBootstrapServers = ctx.String(kafkaBootstrapServersFlag.Name)
@@ -168,28 +150,36 @@ func ConfigureBeaconChain(ctx *cli.Context) {
 	cfg.AttestationAggregationStrategy = ctx.String(attestationAggregationStrategy.Name)
 	log.Infof("Using %q strategy on attestation aggregation", cfg.AttestationAggregationStrategy)
 
-	if ctx.Bool(enableEth1DataMajorityVote.Name) {
-		log.Warn("Enabling eth1data majority vote")
-		cfg.EnableEth1DataMajorityVote = true
-	}
-	if ctx.Bool(enableAttBroadcastDiscoveryAttempts.Name) {
-		cfg.EnableAttBroadcastDiscoveryAttempts = true
+	cfg.EnableEth1DataMajorityVote = true
+	if ctx.Bool(disableEth1DataMajorityVote.Name) {
+		log.Warn("Disabling eth1data majority vote")
+		cfg.EnableEth1DataMajorityVote = false
 	}
 	if ctx.Bool(enablePeerScorer.Name) {
 		log.Warn("Enabling peer scoring in P2P")
 		cfg.EnablePeerScorer = true
 	}
 	if ctx.Bool(checkPtInfoCache.Name) {
-		log.Warn("Using advance check point info cache")
-		cfg.UseCheckPointInfoCache = true
+		log.Warn("Advance check point info cache is no longer supported and will soon be deleted")
 	}
-	if ctx.Bool(enableBlst.Name) {
-		log.Warn("Enabling new BLS library blst")
-		cfg.EnableBlst = true
+	cfg.EnableBlst = true
+	if ctx.Bool(disableBlst.Name) {
+		log.Warn("Disabling new BLS library blst")
+		cfg.EnableBlst = false
 	}
-	if ctx.Bool(enablePruningDepositProofs.Name) {
-		log.Warn("Enabling pruning deposit proofs")
-		cfg.EnablePruningDepositProofs = true
+	cfg.EnablePruningDepositProofs = true
+	if ctx.Bool(disablePruningDepositProofs.Name) {
+		log.Warn("Disabling pruning deposit proofs")
+		cfg.EnablePruningDepositProofs = false
+	}
+	cfg.EnableSyncBacktracking = true
+	if ctx.Bool(disableSyncBacktracking.Name) {
+		log.Warn("Disabling init-sync backtracking algorithm")
+		cfg.EnableSyncBacktracking = false
+	}
+	if ctx.Bool(enableLargerGossipHistory.Name) {
+		log.Warn("Using a larger gossip history for the node")
+		cfg.EnableLargerGossipHistory = true
 	}
 	Init(cfg)
 }
@@ -217,6 +207,16 @@ func ConfigureValidator(ctx *cli.Context) {
 	if ctx.Bool(enableExternalSlasherProtectionFlag.Name) {
 		log.Warn("Enabled validator attestation and block slashing protection using an external slasher.")
 		cfg.SlasherProtection = true
+	}
+	if ctx.Bool(writeWalletPasswordOnWebOnboarding.Name) {
+		log.Warn("Enabled full web mode, wallet password will be written to disk at the wallet directory " +
+			"upon completing web onboarding.")
+		cfg.WriteWalletPasswordOnWebOnboarding = true
+	}
+	cfg.EnableBlst = true
+	if ctx.Bool(disableBlst.Name) {
+		log.Warn("Disabling new BLS library blst")
+		cfg.EnableBlst = false
 	}
 	Init(cfg)
 }

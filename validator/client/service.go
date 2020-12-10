@@ -15,14 +15,16 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
+	pbrpc "github.com/prysmaticlabs/prysm/proto/beacon/rpc/v1"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/event"
 	"github.com/prysmaticlabs/prysm/shared/grpcutils"
 	"github.com/prysmaticlabs/prysm/shared/params"
-	"github.com/prysmaticlabs/prysm/validator/accounts/v2/wallet"
+	"github.com/prysmaticlabs/prysm/validator/accounts/wallet"
 	"github.com/prysmaticlabs/prysm/validator/db"
-	v2 "github.com/prysmaticlabs/prysm/validator/keymanager/v2"
-	"github.com/prysmaticlabs/prysm/validator/keymanager/v2/direct"
+	"github.com/prysmaticlabs/prysm/validator/graffiti"
+	"github.com/prysmaticlabs/prysm/validator/keymanager"
+	"github.com/prysmaticlabs/prysm/validator/keymanager/imported"
 	slashingprotection "github.com/prysmaticlabs/prysm/validator/slashing-protection"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/plugin/ocgrpc"
@@ -45,6 +47,12 @@ type GenesisFetcher interface {
 	GenesisInfo(ctx context.Context) (*ethpb.Genesis, error)
 }
 
+// BeaconNodeInfoFetcher can retrieve information such as the logs endpoint
+// from a beacon node via RPC.
+type BeaconNodeInfoFetcher interface {
+	BeaconLogsEndpoint(ctx context.Context) (string, error)
+}
+
 // ValidatorService represents a service to manage the validator client
 // routine.
 type ValidatorService struct {
@@ -64,9 +72,10 @@ type ValidatorService struct {
 	validator             Validator
 	protector             slashingprotection.Protector
 	ctx                   context.Context
-	keyManagerV2          v2.IKeymanager
+	keyManager            keymanager.IKeymanager
 	grpcHeaders           []string
 	graffiti              []byte
+	graffitiStruct        *graffiti.Graffiti
 }
 
 // Config for the validator service.
@@ -82,11 +91,12 @@ type Config struct {
 	Endpoint                   string
 	Validator                  Validator
 	ValDB                      db.Database
-	KeyManagerV2               v2.IKeymanager
+	KeyManager                 keymanager.IKeymanager
 	GraffitiFlag               string
 	CertFlag                   string
 	DataDir                    string
 	GrpcHeadersFlag            string
+	GraffitiStruct             *graffiti.Graffiti
 }
 
 // NewValidatorService creates a new validator service for the service
@@ -100,7 +110,7 @@ func NewValidatorService(ctx context.Context, cfg *Config) (*ValidatorService, e
 		withCert:              cfg.CertFlag,
 		dataDir:               cfg.DataDir,
 		graffiti:              []byte(cfg.GraffitiFlag),
-		keyManagerV2:          cfg.KeyManagerV2,
+		keyManager:            cfg.KeyManager,
 		logValidatorBalances:  cfg.LogValidatorBalances,
 		emitAccountMetrics:    cfg.EmitAccountMetrics,
 		maxCallRecvMsgSize:    cfg.GrpcMaxCallRecvMsgSizeFlag,
@@ -112,6 +122,7 @@ func NewValidatorService(ctx context.Context, cfg *Config) (*ValidatorService, e
 		db:                    cfg.ValDB,
 		walletInitializedFeed: cfg.WalletInitializedFeed,
 		useWeb:                cfg.UseWeb,
+		graffitiStruct:        cfg.GraffitiStruct,
 	}, nil
 }
 
@@ -126,7 +137,6 @@ func (v *ValidatorService) Start() {
 	dialOpts := ConstructDialOptions(
 		v.maxCallRecvMsgSize,
 		v.withCert,
-		v.grpcHeaders,
 		v.grpcRetries,
 		v.grpcRetryDelay,
 		streamInterceptor,
@@ -134,6 +144,18 @@ func (v *ValidatorService) Start() {
 	if dialOpts == nil {
 		return
 	}
+
+	for _, hdr := range v.grpcHeaders {
+		if hdr != "" {
+			ss := strings.Split(hdr, "=")
+			if len(ss) < 2 {
+				log.Warnf("Incorrect gRPC header flag format. Skipping %v", ss[0])
+				continue
+			}
+			v.ctx = metadata.AppendToOutgoingContext(v.ctx, ss[0], strings.Join(ss[1:], "="))
+		}
+	}
+
 	conn, err := grpc.DialContext(v.ctx, v.endpoint, dialOpts...)
 	if err != nil {
 		log.Errorf("Could not dial endpoint: %s, %v", v.endpoint, err)
@@ -164,7 +186,7 @@ func (v *ValidatorService) Start() {
 		validatorClient:                ethpb.NewBeaconNodeValidatorClient(v.conn),
 		beaconClient:                   ethpb.NewBeaconChainClient(v.conn),
 		node:                           ethpb.NewNodeClient(v.conn),
-		keyManagerV2:                   v.keyManagerV2,
+		keyManager:                     v.keyManager,
 		graffiti:                       v.graffiti,
 		logValidatorBalances:           v.logValidatorBalances,
 		emitAccountMetrics:             v.emitAccountMetrics,
@@ -177,6 +199,7 @@ func (v *ValidatorService) Start() {
 		voteStats:                      voteStats{startEpoch: ^uint64(0)},
 		useWeb:                         v.useWeb,
 		walletInitializedFeed:          v.walletInitializedFeed,
+		graffitiStruct:                 v.graffitiStruct,
 	}
 	go run(v.ctx, v.validator)
 	go v.recheckKeys(v.ctx)
@@ -209,24 +232,22 @@ func (v *ValidatorService) recheckKeys(ctx context.Context) {
 		cleanup := sub.Unsubscribe
 		defer cleanup()
 		w := <-initializedChan
-		keyManagerV2, err := w.InitializeKeymanager(
-			ctx, true, /* skipMnemonicConfirm */
-		)
+		keyManager, err := w.InitializeKeymanager(ctx)
 		if err != nil {
 			// log.Fatalf will prevent defer from being called
 			cleanup()
 			log.Fatalf("Could not read keymanager for wallet: %v", err)
 		}
-		v.keyManagerV2 = keyManagerV2
+		v.keyManager = keyManager
 	}
-	validatingKeys, err = v.keyManagerV2.FetchValidatingPublicKeys(ctx)
+	validatingKeys, err = v.keyManager.FetchValidatingPublicKeys(ctx)
 	if err != nil {
 		log.WithError(err).Debug("Could not fetch validating keys")
 	}
 	if err := v.db.UpdatePublicKeysBuckets(validatingKeys); err != nil {
 		log.WithError(err).Debug("Could not update public keys buckets")
 	}
-	go recheckValidatingKeysBucket(ctx, v.db, v.keyManagerV2)
+	go recheckValidatingKeysBucket(ctx, v.db, v.keyManager)
 	for _, key := range validatingKeys {
 		log.WithField(
 			"publicKey", fmt.Sprintf("%#x", bytesutil.Trunc(key[:])),
@@ -238,7 +259,6 @@ func (v *ValidatorService) recheckKeys(ctx context.Context) {
 func ConstructDialOptions(
 	maxCallRecvMsgSize int,
 	withCert string,
-	grpcHeaders []string,
 	grpcRetries uint,
 	grpcRetryDelay time.Duration,
 	extraOpts ...grpc.DialOption,
@@ -262,25 +282,12 @@ func ConstructDialOptions(
 		maxCallRecvMsgSize = 10 * 5 << 20 // Default 50Mb
 	}
 
-	md := make(metadata.MD)
-	for _, hdr := range grpcHeaders {
-		if hdr != "" {
-			ss := strings.Split(hdr, "=")
-			if len(ss) != 2 {
-				log.Warnf("Incorrect gRPC header flag format. Skipping %v", hdr)
-				continue
-			}
-			md.Set(ss[0], ss[1])
-		}
-	}
-
 	dialOpts := []grpc.DialOption{
 		transportSecurity,
 		grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(maxCallRecvMsgSize),
 			grpc_retry.WithMax(grpcRetries),
 			grpc_retry.WithBackoff(grpc_retry.BackoffLinear(grpcRetryDelay)),
-			grpc.Header(&md),
 		),
 		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}),
 		grpc.WithUnaryInterceptor(middleware.ChainUnaryClient(
@@ -319,15 +326,26 @@ func (v *ValidatorService) GenesisInfo(ctx context.Context) (*ethpb.Genesis, err
 	return nc.GetGenesis(ctx, &ptypes.Empty{})
 }
 
+// BeaconLogsEndpoint retrieves the websocket endpoint string at which
+// clients can subscribe to for beacon node logs.
+func (v *ValidatorService) BeaconLogsEndpoint(ctx context.Context) (string, error) {
+	hc := pbrpc.NewHealthClient(v.conn)
+	resp, err := hc.GetLogsEndpoint(ctx, &ptypes.Empty{})
+	if err != nil {
+		return "", err
+	}
+	return resp.BeaconLogsEndpoint, nil
+}
+
 // to accounts changes in the keymanager, then updates those keys'
 // buckets in bolt DB if a bucket for a key does not exist.
-func recheckValidatingKeysBucket(ctx context.Context, valDB db.Database, km v2.IKeymanager) {
-	directKeymanager, ok := km.(*direct.Keymanager)
+func recheckValidatingKeysBucket(ctx context.Context, valDB db.Database, km keymanager.IKeymanager) {
+	importedKeymanager, ok := km.(*imported.Keymanager)
 	if !ok {
 		return
 	}
 	validatingPubKeysChan := make(chan [][48]byte, 1)
-	sub := directKeymanager.SubscribeAccountChanges(validatingPubKeysChan)
+	sub := importedKeymanager.SubscribeAccountChanges(validatingPubKeysChan)
 	defer sub.Unsubscribe()
 	for {
 		select {

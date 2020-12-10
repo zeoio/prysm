@@ -18,7 +18,7 @@ import (
 	testingDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p/peers"
 	p2ptest "github.com/prysmaticlabs/prysm/beacon-chain/p2p/testing"
-	p2pTypes "github.com/prysmaticlabs/prysm/beacon-chain/p2p/types"
+	p2ptypes "github.com/prysmaticlabs/prysm/beacon-chain/p2p/types"
 	stateTrie "github.com/prysmaticlabs/prysm/beacon-chain/state"
 	mockSync "github.com/prysmaticlabs/prysm/beacon-chain/sync/initial-sync/testing"
 	pb "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
@@ -76,9 +76,9 @@ func TestStatusRPCHandler_Disconnects_OnForkVersionMismatch(t *testing.T) {
 	wg2.Add(1)
 	p2.BHost.SetStreamHandler(pcl2, func(stream network.Stream) {
 		defer wg2.Done()
-		msg := new(p2pTypes.SSZUint64)
+		msg := new(p2ptypes.SSZUint64)
 		assert.NoError(t, r.p2p.Encoding().DecodeWithMaxLength(stream, msg))
-		assert.Equal(t, codeWrongNetwork, *msg)
+		assert.Equal(t, p2ptypes.GoodbyeCodeWrongNetwork, *msg)
 		assert.NoError(t, stream.Close())
 	})
 
@@ -324,7 +324,7 @@ func TestHandshakeHandlers_Roundtrip(t *testing.T) {
 	wg2.Add(1)
 	p2.BHost.SetStreamHandler(pcl, func(stream network.Stream) {
 		defer wg2.Done()
-		out := new(p2pTypes.SSZUint64)
+		out := new(p2ptypes.SSZUint64)
 		assert.NoError(t, r.p2p.Encoding().DecodeWithMaxLength(stream, out))
 		assert.Equal(t, uint64(2), uint64(*out))
 		assert.NoError(t, r2.pingHandler(context.Background(), out, stream))
@@ -433,7 +433,7 @@ func TestStatusRPCRequest_RequestSent(t *testing.T) {
 		}
 	})
 
-	p1.AddConnectionHandler(r.sendRPCStatusRequest)
+	p1.AddConnectionHandler(r.sendRPCStatusRequest, nil)
 	p1.Connect(p2)
 
 	if testutil.WaitTimeout(&wg, 1*time.Second) {
@@ -520,7 +520,7 @@ func TestStatusRPCRequest_FinalizedBlockExists(t *testing.T) {
 		assert.NoError(t, r2.validateStatusMessage(context.Background(), out))
 	})
 
-	p1.AddConnectionHandler(r.sendRPCStatusRequest)
+	p1.AddConnectionHandler(r.sendRPCStatusRequest, nil)
 	p1.Connect(p2)
 
 	if testutil.WaitTimeout(&wg, 1*time.Second) {
@@ -687,7 +687,7 @@ func TestStatusRPCRequest_FinalizedBlockSkippedSlots(t *testing.T) {
 			assert.Equal(t, tt.expectError, r2.validateStatusMessage(context.Background(), out) != nil)
 		})
 
-		p1.AddConnectionHandler(r.sendRPCStatusRequest)
+		p1.AddConnectionHandler(r.sendRPCStatusRequest, nil)
 		p1.Connect(p2)
 
 		if testutil.WaitTimeout(&wg, 1*time.Second) {
@@ -758,12 +758,13 @@ func TestStatusRPCRequest_BadPeerHandshake(t *testing.T) {
 			FinalizedRoot:  finalizedRoot[:],
 		}
 		if _, err := stream.Write([]byte{responseCodeSuccess}); err != nil {
-			log.WithError(err).Error("Failed to write to stream")
+			log.WithError(err).Debug("Could not write to stream")
 		}
 		_, err := r.p2p.Encoding().EncodeWithMaxLength(stream, expected)
 		assert.NoError(t, err)
 	})
 
+	assert.Equal(t, false, p1.Peers().Scorers().IsBadPeer(p2.PeerID()), "Peer is marked as bad")
 	p1.Connect(p2)
 
 	if testutil.WaitTimeout(&wg, time.Second) {
@@ -772,12 +773,10 @@ func TestStatusRPCRequest_BadPeerHandshake(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	connectionState, err := p1.Peers().ConnectionState(p2.PeerID())
-	require.NoError(t, err, "Failed to obtain peer connection state")
+	require.NoError(t, err, "Could not obtain peer connection state")
 	assert.Equal(t, peers.PeerDisconnected, connectionState, "Expected peer to be disconnected")
 
-	badResponses, err := p1.Peers().Scorers().BadResponsesScorer().Count(p2.PeerID())
-	require.NoError(t, err, "Failed to obtain peer connection state")
-	assert.Equal(t, 1, badResponses, "Bad response was not bumped to one")
+	assert.Equal(t, true, p1.Peers().Scorers().IsBadPeer(p2.PeerID()), "Peer is not marked as bad")
 }
 
 func TestStatusRPC_ValidGenesisMessage(t *testing.T) {

@@ -50,12 +50,10 @@ type FinalizedDeposits struct {
 // stores all the deposit related data that is required by the beacon-node.
 type DepositCache struct {
 	// Beacon chain deposits in memory.
-	pendingDeposits    []*dbpb.DepositContainer
-	deposits           []*dbpb.DepositContainer
-	finalizedDeposits  *FinalizedDeposits
-	depositsLock       sync.RWMutex
-	chainStartDeposits []*ethpb.Deposit
-	chainStartPubkeys  map[string]bool
+	pendingDeposits   []*dbpb.DepositContainer
+	deposits          []*dbpb.DepositContainer
+	finalizedDeposits *FinalizedDeposits
+	depositsLock      sync.RWMutex
 }
 
 // New instantiates a new deposit cache
@@ -68,11 +66,9 @@ func New() (*DepositCache, error) {
 	// finalizedDeposits.MerkleTrieIndex is initialized to -1 because it represents the index of the last trie item.
 	// Inserting the first item into the trie will set the value of the index to 0.
 	return &DepositCache{
-		pendingDeposits:    []*dbpb.DepositContainer{},
-		deposits:           []*dbpb.DepositContainer{},
-		finalizedDeposits:  &FinalizedDeposits{Deposits: finalizedDepositsTrie, MerkleTrieIndex: -1},
-		chainStartPubkeys:  make(map[string]bool),
-		chainStartDeposits: make([]*ethpb.Deposit, 0),
+		pendingDeposits:   []*dbpb.DepositContainer{},
+		deposits:          []*dbpb.DepositContainer{},
+		finalizedDeposits: &FinalizedDeposits{Deposits: finalizedDepositsTrie, MerkleTrieIndex: -1},
 	}, nil
 }
 
@@ -150,24 +146,6 @@ func (dc *DepositCache) AllDepositContainers(ctx context.Context) []*dbpb.Deposi
 	defer dc.depositsLock.RUnlock()
 
 	return dc.deposits
-}
-
-// MarkPubkeyForChainstart sets the pubkey deposit status to true.
-func (dc *DepositCache) MarkPubkeyForChainstart(ctx context.Context, pubkey string) {
-	ctx, span := trace.StartSpan(ctx, "DepositsCache.MarkPubkeyForChainstart")
-	defer span.End()
-	dc.chainStartPubkeys[pubkey] = true
-}
-
-// PubkeyInChainstart returns bool for whether the pubkey passed in has deposited.
-func (dc *DepositCache) PubkeyInChainstart(ctx context.Context, pubkey string) bool {
-	ctx, span := trace.StartSpan(ctx, "DepositsCache.PubkeyInChainstart")
-	defer span.End()
-	if dc.chainStartPubkeys != nil {
-		return dc.chainStartPubkeys[pubkey]
-	}
-	dc.chainStartPubkeys = make(map[string]bool)
-	return false
 }
 
 // AllDeposits returns a list of historical deposits until the given block number
@@ -266,7 +244,7 @@ func (dc *DepositCache) PruneProofs(ctx context.Context, untilDepositIndex int64
 	dc.depositsLock.Lock()
 	defer dc.depositsLock.Unlock()
 
-	if untilDepositIndex > int64(len(dc.deposits)) {
+	if untilDepositIndex >= int64(len(dc.deposits)) {
 		untilDepositIndex = int64(len(dc.deposits) - 1)
 	}
 

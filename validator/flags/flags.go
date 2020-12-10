@@ -12,12 +12,14 @@ import (
 )
 
 const (
-	// WalletDefaultDirName for accounts-v2.
+	// WalletDefaultDirName for accounts.
 	WalletDefaultDirName = "prysm-wallet-v2"
+	// DefaultGatewayHost for the validator client.
+	DefaultGatewayHost = "127.0.0.1"
 )
 
 var (
-	// DisableAccountMetricsFlag defines the graffiti value included in proposed blocks, default false.
+	// DisableAccountMetricsFlag disables the prometheus metrics for validator accounts, default false.
 	DisableAccountMetricsFlag = &cli.BoolFlag{
 		Name: "disable-account-metrics",
 		Usage: "Disable prometheus metrics for validator accounts. Operators with high volumes " +
@@ -102,7 +104,7 @@ var (
 	GRPCGatewayHost = &cli.StringFlag{
 		Name:  "grpc-gateway-host",
 		Usage: "The host on which the gateway server runs on",
-		Value: "127.0.0.1",
+		Value: DefaultGatewayHost,
 	}
 	// GRPCGatewayPort enables a gRPC gateway to be exposed for the validator client.
 	GRPCGatewayPort = &cli.IntFlag{
@@ -115,15 +117,14 @@ var (
 		Name: "grpc-gateway-corsdomain",
 		Usage: "Comma separated list of domains from which to accept cross origin requests " +
 			"(browser enforced). This flag has no effect if not used with --grpc-gateway-port.",
-		Value: "http://localhost:4242,http://127.0.0.1:4242,http://localhost:4200",
-	}
+		Value: "http://localhost:4242,http://127.0.0.1:4242,http://localhost:4200,http://0.0.0.0:4242,http://0.0.0.0:4200"}
 	// MonitoringPortFlag defines the http port used to serve prometheus metrics.
 	MonitoringPortFlag = &cli.IntFlag{
 		Name:  "monitoring-port",
 		Usage: "Port used to listening and respond metrics for prometheus.",
 		Value: 8081,
 	}
-	// WalletDirFlag defines the path to a wallet directory for Prysm accounts-v2.
+	// WalletDirFlag defines the path to a wallet directory for Prysm accounts.
 	WalletDirFlag = &cli.StringFlag{
 		Name:  "wallet-dir",
 		Usage: "Path to a wallet directory on-disk for Prysm validator accounts",
@@ -139,6 +140,16 @@ var (
 		Name:  "wallet-password-file",
 		Usage: "Path to a plain-text, .txt file containing your wallet password",
 	}
+	// Mnemonic25thWordFileFlag defines a path to a file containing a "25th" word mnemonic passphrase for advanced users.
+	Mnemonic25thWordFileFlag = &cli.StringFlag{
+		Name:  "mnemonic-25th-word-file",
+		Usage: "(Advanced) Path to a plain-text, .txt file containing a 25th word passphrase for your mnemonic for HD wallets",
+	}
+	// SkipMnemonic25thWordCheckFlag allows for skipping a check for mnemonic 25th word passphrases for HD wallets.
+	SkipMnemonic25thWordCheckFlag = &cli.StringFlag{
+		Name:  "skip-mnemonic-25th-word-check",
+		Usage: "Allows for skipping the check for a mnemonic 25th word passphrase for HD wallets",
+	}
 	// ImportPrivateKeyFileFlag allows for directly importing a private key hex string as an account.
 	ImportPrivateKeyFileFlag = &cli.StringFlag{
 		Name:  "import-private-key-file",
@@ -149,16 +160,16 @@ var (
 		Name:  "mnemonic-file",
 		Usage: "File to retrieve mnemonic for non-interactively passing a mnemonic phrase into wallet recover.",
 	}
-	// ShowDepositDataFlag for accounts-v2.
+	// ShowDepositDataFlag for accounts.
 	ShowDepositDataFlag = &cli.BoolFlag{
 		Name:  "show-deposit-data",
-		Usage: "Display raw eth1 tx deposit data for validator accounts-v2",
+		Usage: "Display raw eth1 tx deposit data for validator accounts",
 		Value: false,
 	}
-	// ShowPrivateKeysFlag for accounts-v2.
+	// ShowPrivateKeysFlag for accounts.
 	ShowPrivateKeysFlag = &cli.BoolFlag{
 		Name:  "show-private-keys",
-		Usage: "Display the private keys for validator accounts-v2",
+		Usage: "Display the private keys for validator accounts",
 		Value: false,
 	}
 	// NumAccountsFlag defines the amount of accounts to generate for derived wallets.
@@ -172,6 +183,20 @@ var (
 	DeletePublicKeysFlag = &cli.StringFlag{
 		Name:  "delete-public-keys",
 		Usage: "Comma-separated list of public key hex strings to specify which validator accounts to delete",
+		Value: "",
+	}
+	// DisablePublicKeysFlag defines a comma-separated list of hex string public keys
+	// for accounts which a user desires to disable for their wallet.
+	DisablePublicKeysFlag = &cli.StringFlag{
+		Name:  "disable-public-keys",
+		Usage: "Comma-separated list of public key hex strings to specify which validator accounts to disable",
+		Value: "",
+	}
+	// EnablePublicKeysFlag defines a comma-separated list of hex string public keys
+	// for accounts which a user desires to enable for their wallet.
+	EnablePublicKeysFlag = &cli.StringFlag{
+		Name:  "enable-public-keys",
+		Usage: "Comma-separated list of public key hex strings to specify which validator accounts to enable",
 		Value: "",
 	}
 	// BackupPublicKeysFlag defines a comma-separated list of hex string public keys
@@ -212,6 +237,12 @@ var (
 		Usage: "Host:port of a gRPC server for a remote keymanager",
 		Value: "",
 	}
+	// DisableRemoteSignerTlsFlag disables TLS when connecting to a remote signer.
+	DisableRemoteSignerTlsFlag = &cli.BoolFlag{
+		Name:  "disable-remote-signer-tls",
+		Usage: "Disables TLS when connecting to a remote signer. (WARNING! This will result in insecure requests!)",
+		Value: false,
+	}
 	// RemoteSignerCertPathFlag defines the path to a client.crt file for a wallet to connect to
 	// a secure signer via TLS and gRPC.
 	RemoteSignerCertPathFlag = &cli.StringFlag{
@@ -236,7 +267,7 @@ var (
 	// KeymanagerKindFlag defines the kind of keymanager desired by a user during wallet creation.
 	KeymanagerKindFlag = &cli.StringFlag{
 		Name:  "keymanager-kind",
-		Usage: "Kind of keymanager, either direct, derived, or remote, specified during wallet creation",
+		Usage: "Kind of keymanager, either imported, derived, or remote, specified during wallet creation",
 		Value: "",
 	}
 	// SkipDepositConfirmationFlag skips the y/n confirmation prompt for sending a deposit to the deposit contract.
@@ -251,17 +282,10 @@ var (
 		Usage: "Enables the web portal for the validator client (work in progress)",
 		Value: false,
 	}
-	// WebHostFlag specifies the host name to bind the Prysm web UI server.
-	WebHostFlag = &cli.StringFlag{
-		Name:  "web-host",
-		Usage: "The host address which to serve the Prysm web UI",
-		Value: "127.0.0.1",
-	}
-	// WebPortFlag specifies the port number to bind the Prysm web UI server.
-	WebPortFlag = &cli.Uint64Flag{
-		Name:  "web-port",
-		Usage: "The host port which to serve the Prysm web UI",
-		Value: 4242,
+	// GraffitiFileFlag specifies the file path to load graffiti values.
+	GraffitiFileFlag = &cli.StringFlag{
+		Name:  "graffiti-file",
+		Usage: "The path to a YAML file with graffiti values",
 	}
 )
 

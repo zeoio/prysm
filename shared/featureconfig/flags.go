@@ -5,30 +5,21 @@ import (
 )
 
 var (
-	// AltonaTestnet flag for the multiclient eth2 testnet configuration.
-	AltonaTestnet = &cli.BoolFlag{
-		Name:  "altona",
-		Usage: "This defines the flag through which we can run on the Altona Multiclient Testnet",
+	// ToledoTestnet flag for the multiclient eth2 testnet.
+	ToledoTestnet = &cli.BoolFlag{
+		Name:  "toledo",
+		Usage: "This defines the flag through which we can run on the Toledo Multiclient Testnet",
 	}
-	// OnyxTestnet flag for the Prysmatic Labs single-client testnet configuration.
-	OnyxTestnet = &cli.BoolFlag{
-		Name:  "onyx",
-		Usage: "This defines the flag through which we can run on the Onyx Prysm Testnet",
+	// PyrmontTestnet flag for the multiclient eth2 testnet.
+	PyrmontTestnet = &cli.BoolFlag{
+		Name:  "pyrmont",
+		Usage: "This defines the flag through which we can run on the Pyrmont Multiclient Testnet",
 	}
-	// MedallaTestnet flag for the multiclient eth2 testnet.
-	MedallaTestnet = &cli.BoolFlag{
-		Name:  "medalla",
-		Usage: "This defines the flag through which we can run on the Medalla Multiclient Testnet",
-	}
-	// SpadinaTestnet flag for the multiclient eth2 testnet.
-	SpadinaTestnet = &cli.BoolFlag{
-		Name:  "spadina",
-		Usage: "This defines the flag through which we can run on the Spadina Multiclient Testnet",
-	}
-	// ZinkenTestnet flag for the multiclient eth2 testnet.
-	ZinkenTestnet = &cli.BoolFlag{
-		Name:  "zinken",
-		Usage: "This defines the flag through which we can run on the Zinken Multiclient Testnet",
+	// Mainnet flag for easier tooling, no-op
+	Mainnet = &cli.BoolFlag{
+		Value: true,
+		Name:  "mainnet",
+		Usage: "Run on Ethereum 2.0 Main Net. This is the default and can be omitted.",
 	}
 	devModeFlag = &cli.BoolFlag{
 		Name:  "dev",
@@ -38,10 +29,6 @@ var (
 		Name:  "interop-write-ssz-state-transitions",
 		Usage: "Write ssz states to disk after attempted state transition",
 	}
-	enableBackupWebhookFlag = &cli.BoolFlag{
-		Name:  "enable-db-backup-webhook",
-		Usage: "Serve HTTP handler to initiate database backups. The handler is served on the monitoring port at path /db/backup.",
-	}
 	kafkaBootstrapServersFlag = &cli.StringFlag{
 		Name:  "kafka-url",
 		Usage: "Stream attestations and blocks to specified kafka servers. This field is used for bootstrap.servers kafka config field.",
@@ -50,10 +37,6 @@ var (
 		Name: "enable-external-slasher-protection",
 		Usage: "Enables the validator to connect to external slasher to prevent it from " +
 			"transmitting a slashable offence over the network.",
-	}
-	waitForSyncedFlag = &cli.BoolFlag{
-		Name:  "wait-for-synced",
-		Usage: "Uses WaitForSynced for validator startup, to ensure a validator is able to communicate with the beacon node as quick as possible",
 	}
 	disableLookbackFlag = &cli.BoolFlag{
 		Name:  "disable-lookback",
@@ -68,21 +51,17 @@ var (
 		Usage: "Which strategy to use when aggregating attestations, one of: naive, max_cover.",
 		Value: "max_cover",
 	}
-	enableBlst = &cli.BoolFlag{
-		Name:  "blst",
-		Usage: "Enable new BLS library, blst, from Supranational",
+	disableBlst = &cli.BoolFlag{
+		Name:  "disable-blst",
+		Usage: "Disables the new BLS library, blst, from Supranational",
 	}
-	enableEth1DataMajorityVote = &cli.BoolFlag{
-		Name:  "enable-eth1-data-majority-vote",
-		Usage: "When enabled, voting on eth1 data will use the Voting With The Majority algorithm.",
+	disableEth1DataMajorityVote = &cli.BoolFlag{
+		Name:  "disable-eth1-data-majority-vote",
+		Usage: "Disables the Voting With The Majority algorithm when voting for eth1data.",
 	}
 	disableAccountsV2 = &cli.BoolFlag{
 		Name:  "disable-accounts-v2",
 		Usage: "Disables usage of v2 for Prysm validator accounts",
-	}
-	enableAttBroadcastDiscoveryAttempts = &cli.BoolFlag{
-		Name:  "enable-att-broadcast-discovery-attempts",
-		Usage: "Enable experimental attestation subnet discovery before broadcasting.",
 	}
 	enablePeerScorer = &cli.BoolFlag{
 		Name:  "enable-peer-scorer",
@@ -92,76 +71,75 @@ var (
 		Name:  "use-check-point-cache",
 		Usage: "Enables check point info caching",
 	}
-	enablePruningDepositProofs = &cli.BoolFlag{
-		Name:  "enable-pruning-deposit-proofs",
-		Usage: "Enables pruning deposit proofs when they are no longer needed. This significantly reduces deposit size.",
+	disablePruningDepositProofs = &cli.BoolFlag{
+		Name: "disable-pruning-deposit-proofs",
+		Usage: "Disables pruning deposit proofs when they are no longer needed." +
+			"This will probably significantly increase the amount of memory taken up by deposits.",
+	}
+	disableSyncBacktracking = &cli.BoolFlag{
+		Name:  "disable-sync-backtracking",
+		Usage: "Disable alternative fork exploration backtracking algorithm",
+	}
+	enableLargerGossipHistory = &cli.BoolFlag{
+		Name:  "enable-larger-gossip-history",
+		Usage: "Enables the node to store a larger amount of gossip messages in its cache.",
+	}
+	writeWalletPasswordOnWebOnboarding = &cli.BoolFlag{
+		Name: "write-wallet-password-on-web-onboarding",
+		Usage: "(Danger): Writes the wallet password to the wallet directory on completing Prysm web onboarding. " +
+			"We recommend against this flag unless you are an advanced user.",
 	}
 )
 
 // devModeFlags holds list of flags that are set when development mode is on.
 var devModeFlags = []cli.Flag{
-	checkPtInfoCache,
-	enableEth1DataMajorityVote,
-	enableAttBroadcastDiscoveryAttempts,
-	enablePeerScorer,
-	enablePruningDepositProofs,
+	enableLargerGossipHistory,
 }
 
 // ValidatorFlags contains a list of all the feature flags that apply to the validator client.
 var ValidatorFlags = append(deprecatedFlags, []cli.Flag{
+	writeWalletPasswordOnWebOnboarding,
 	enableExternalSlasherProtectionFlag,
-	waitForSyncedFlag,
-	AltonaTestnet,
-	OnyxTestnet,
-	MedallaTestnet,
-	SpadinaTestnet,
-	ZinkenTestnet,
+	ToledoTestnet,
+	PyrmontTestnet,
+	Mainnet,
 	disableAccountsV2,
-	enableBlst,
+	disableBlst,
 }...)
 
 // SlasherFlags contains a list of all the feature flags that apply to the slasher client.
 var SlasherFlags = append(deprecatedFlags, []cli.Flag{
 	disableLookbackFlag,
-	AltonaTestnet,
-	OnyxTestnet,
-	MedallaTestnet,
-	SpadinaTestnet,
-	ZinkenTestnet,
+	ToledoTestnet,
+	PyrmontTestnet,
+	Mainnet,
 }...)
 
 // E2EValidatorFlags contains a list of the validator feature flags to be tested in E2E.
-var E2EValidatorFlags = []string{
-	"--wait-for-synced",
-}
+var E2EValidatorFlags = []string{}
 
 // BeaconChainFlags contains a list of all the feature flags that apply to the beacon-chain client.
 var BeaconChainFlags = append(deprecatedFlags, []cli.Flag{
 	devModeFlag,
 	writeSSZStateTransitionsFlag,
 	kafkaBootstrapServersFlag,
-	enableBackupWebhookFlag,
-	waitForSyncedFlag,
 	disableGRPCConnectionLogging,
 	attestationAggregationStrategy,
-	AltonaTestnet,
-	OnyxTestnet,
-	MedallaTestnet,
-	SpadinaTestnet,
-	ZinkenTestnet,
-	enableBlst,
-	enableEth1DataMajorityVote,
-	enableAttBroadcastDiscoveryAttempts,
+	ToledoTestnet,
+	PyrmontTestnet,
+	Mainnet,
+	disableBlst,
+	disableEth1DataMajorityVote,
 	enablePeerScorer,
+	enableLargerGossipHistory,
 	checkPtInfoCache,
-	enablePruningDepositProofs,
+	disablePruningDepositProofs,
+	disableSyncBacktracking,
 }...)
 
 // E2EBeaconChainFlags contains a list of the beacon chain feature flags to be tested in E2E.
 var E2EBeaconChainFlags = []string{
 	"--attestation-aggregation-strategy=max_cover",
 	"--dev",
-	"--enable-eth1-data-majority-vote",
 	"--use-check-point-cache",
-	"--enable-pruning-deposit-proofs",
 }

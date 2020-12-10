@@ -12,6 +12,7 @@ import (
 	beaconstate "github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/sliceutil"
+	"github.com/trailofbits/go-mutexasserts"
 	"go.opencensus.io/trace"
 )
 
@@ -123,7 +124,6 @@ func (p *Pool) InsertAttesterSlashing(
 	defer span.End()
 
 	if err := blocks.VerifyAttesterSlashing(ctx, state, slashing); err != nil {
-		numPendingAttesterSlashingFailedSigVerify.Inc()
 		return errors.Wrap(err, "could not verify attester slashing")
 	}
 
@@ -138,7 +138,6 @@ func (p *Pool) InsertAttesterSlashing(
 		// If the validator has already exited, has already been slashed, or if its index
 		// has been recently included in the pool of slashings, skip including this indice.
 		if !ok {
-			attesterSlashingReattempts.Inc()
 			cantSlash = append(cantSlash, val)
 			continue
 		}
@@ -149,7 +148,6 @@ func (p *Pool) InsertAttesterSlashing(
 			return p.pendingAttesterSlashing[i].validatorToSlash >= val
 		})
 		if found != len(p.pendingAttesterSlashing) && p.pendingAttesterSlashing[found].validatorToSlash == val {
-			attesterSlashingReattempts.Inc()
 			cantSlash = append(cantSlash, val)
 			continue
 		}
@@ -184,7 +182,6 @@ func (p *Pool) InsertProposerSlashing(
 	defer span.End()
 
 	if err := blocks.VerifyProposerSlashing(state, slashing); err != nil {
-		numPendingProposerSlashingFailedSigVerify.Inc()
 		return errors.Wrap(err, "could not verify proposer slashing")
 	}
 
@@ -197,7 +194,6 @@ func (p *Pool) InsertProposerSlashing(
 	// has been recently included in the pool of slashings, do not process this new
 	// slashing.
 	if !ok {
-		proposerSlashingReattempts.Inc()
 		return fmt.Errorf("validator at index %d cannot be slashed", idx)
 	}
 
@@ -259,10 +255,15 @@ func (p *Pool) MarkIncludedProposerSlashing(ps *ethpb.ProposerSlashing) {
 // this function checks a few items about a validator before proceeding with inserting
 // a proposer/attester slashing into the pool. First, it checks if the validator
 // has been recently included in the pool, then it checks if the validator is slashable.
+// Note: this method requires caller to hold the lock.
 func (p *Pool) validatorSlashingPreconditionCheck(
 	state *beaconstate.BeaconState,
 	valIdx uint64,
 ) (bool, error) {
+	if !mutexasserts.RWMutexLocked(&p.lock) && !mutexasserts.RWMutexRLocked(&p.lock) {
+		return false, errors.New("pool.validatorSlashingPreconditionCheck: caller must hold read/write lock")
+	}
+
 	// Check if the validator index has been included recently.
 	if p.included[valIdx] {
 		return false, nil

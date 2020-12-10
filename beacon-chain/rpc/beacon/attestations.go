@@ -64,12 +64,12 @@ func (bs *Server) ListAttestations(
 	var err error
 	switch q := req.QueryFilter.(type) {
 	case *ethpb.ListAttestationsRequest_GenesisEpoch:
-		blocks, err = bs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartEpoch(0).SetEndEpoch(0))
+		blocks, _, err = bs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartEpoch(0).SetEndEpoch(0))
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not fetch attestations: %v", err)
 		}
 	case *ethpb.ListAttestationsRequest_Epoch:
-		blocks, err = bs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartEpoch(q.Epoch).SetEndEpoch(q.Epoch))
+		blocks, _, err = bs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartEpoch(q.Epoch).SetEndEpoch(q.Epoch))
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not fetch attestations: %v", err)
 		}
@@ -118,12 +118,12 @@ func (bs *Server) ListIndexedAttestations(
 	var err error
 	switch q := req.QueryFilter.(type) {
 	case *ethpb.ListIndexedAttestationsRequest_GenesisEpoch:
-		blocks, err = bs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartEpoch(0).SetEndEpoch(0))
+		blocks, _, err = bs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartEpoch(0).SetEndEpoch(0))
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not fetch attestations: %v", err)
 		}
 	case *ethpb.ListIndexedAttestationsRequest_Epoch:
-		blocks, err = bs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartEpoch(q.Epoch).SetEndEpoch(q.Epoch))
+		blocks, _, err = bs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartEpoch(q.Epoch).SetEndEpoch(q.Epoch))
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not fetch attestations: %v", err)
 		}
@@ -265,7 +265,7 @@ func (bs *Server) StreamIndexedAttestations(
 				}
 				if data.Attestation == nil || data.Attestation.Aggregate == nil {
 					// One nil attestation shouldn't stop the stream.
-					log.Info("Indexed attestations stream got nil attestation or nil attestation aggregate")
+					log.Debug("Indexed attestations stream got nil attestation or nil attestation aggregate")
 					continue
 				}
 				bs.ReceivedAttestationsBuffer <- data.Attestation.Aggregate
@@ -340,7 +340,7 @@ func (bs *Server) collectReceivedAttestations(ctx context.Context) {
 				// We aggregate the received attestations, we know they all have the same data root.
 				aggAtts, err := attaggregation.Aggregate(atts)
 				if err != nil {
-					log.WithError(err).Error("Could not aggregate collected attestations")
+					log.WithError(err).Error("Could not aggregate attestations")
 					continue
 				}
 				if len(aggAtts) == 0 {
@@ -356,7 +356,7 @@ func (bs *Server) collectReceivedAttestations(ctx context.Context) {
 		case att := <-bs.ReceivedAttestationsBuffer:
 			attDataRoot, err := att.Data.HashTreeRoot()
 			if err != nil {
-				log.Errorf("Could not hash tree root data: %v", err)
+				log.Errorf("Could not hash tree root attestation data: %v", err)
 				continue
 			}
 			attsByRoot[attDataRoot] = append(attsByRoot[attDataRoot], att)

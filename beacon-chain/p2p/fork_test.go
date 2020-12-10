@@ -14,12 +14,12 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	ma "github.com/multiformats/go-multiaddr"
+	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	pb "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/p2putils"
 	"github.com/prysmaticlabs/prysm/shared/params"
-	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	"github.com/sirupsen/logrus"
@@ -32,7 +32,10 @@ func TestStartDiscv5_DifferentForkDigests(t *testing.T) {
 	genesisTime := time.Now()
 	genesisValidatorsRoot := make([]byte, 32)
 	s := &Service{
-		cfg:                   &Config{UDPPort: uint(port)},
+		cfg: &Config{
+			UDPPort:       uint(port),
+			StateNotifier: &mock.MockStateNotifier{},
+		},
 		genesisTime:           genesisTime,
 		genesisValidatorsRoot: genesisValidatorsRoot,
 	}
@@ -44,6 +47,7 @@ func TestStartDiscv5_DifferentForkDigests(t *testing.T) {
 	cfg := &Config{
 		Discv5BootStrapAddr: []string{bootNode.String()},
 		UDPPort:             uint(port),
+		StateNotifier:       &mock.MockStateNotifier{},
 	}
 
 	var listeners []*discover.UDPv5
@@ -119,6 +123,7 @@ func TestStartDiscv5_SameForkDigests_DifferentNextForkData(t *testing.T) {
 		cfg:                   &Config{UDPPort: uint(port)},
 		genesisTime:           genesisTime,
 		genesisValidatorsRoot: genesisValidatorsRoot,
+		stateNotifier:         &mock.MockStateNotifier{},
 	}
 	bootListener, err := s.createListener(ipAddr, pkey)
 	require.NoError(t, err)
@@ -149,6 +154,7 @@ func TestStartDiscv5_SameForkDigests_DifferentNextForkData(t *testing.T) {
 			cfg:                   cfg,
 			genesisTime:           genesisTime,
 			genesisValidatorsRoot: genesisValidatorsRoot,
+			stateNotifier:         &mock.MockStateNotifier{},
 		}
 		listener, err := s.startDiscoveryV5(ipAddr, pkey)
 		assert.NoError(t, err, "Could not start discovery for node")
@@ -176,6 +182,7 @@ func TestStartDiscv5_SameForkDigests_DifferentNextForkData(t *testing.T) {
 	cfg.UDPPort = 14000
 	cfg.TCPPort = 14001
 	cfg.MaxPeers = 30
+	cfg.StateNotifier = &mock.MockStateNotifier{}
 	s, err = NewService(context.Background(), cfg)
 	require.NoError(t, err)
 
@@ -226,7 +233,7 @@ func TestDiscv5_AddRetrieveForkEntryENR(t *testing.T) {
 	forkEntry := enr.WithEntry(eth2ENRKey, enc)
 	// In epoch 1 of current time, the fork version should be
 	// {0, 0, 0, 1} according to the configuration override above.
-	temp := testutil.TempDir()
+	temp := t.TempDir()
 	randNum := rand.Int()
 	tempPath := path.Join(temp, strconv.Itoa(randNum))
 	require.NoError(t, os.Mkdir(tempPath, 0700))
@@ -252,7 +259,7 @@ func TestDiscv5_AddRetrieveForkEntryENR(t *testing.T) {
 }
 
 func TestAddForkEntry_Genesis(t *testing.T) {
-	temp := testutil.TempDir()
+	temp := t.TempDir()
 	randNum := rand.Int()
 	tempPath := path.Join(temp, strconv.Itoa(randNum))
 	require.NoError(t, os.Mkdir(tempPath, 0700))

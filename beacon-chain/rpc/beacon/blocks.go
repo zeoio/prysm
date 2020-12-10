@@ -36,9 +36,9 @@ func (bs *Server) ListBlocks(
 
 	switch q := req.QueryFilter.(type) {
 	case *ethpb.ListBlocksRequest_Epoch:
-		blks, err := bs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartEpoch(q.Epoch).SetEndEpoch(q.Epoch))
+		blks, _, err := bs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartEpoch(q.Epoch).SetEndEpoch(q.Epoch))
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Failed to get blocks: %v", err)
+			return nil, status.Errorf(codes.Internal, "Could not get blocks: %v", err)
 		}
 
 		numBlks := len(blks)
@@ -99,7 +99,7 @@ func (bs *Server) ListBlocks(
 		}, nil
 
 	case *ethpb.ListBlocksRequest_Slot:
-		blks, err := bs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartSlot(q.Slot).SetEndSlot(q.Slot))
+		blks, _, err := bs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartSlot(q.Slot).SetEndSlot(q.Slot))
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not retrieve blocks for slot %d: %v", q.Slot, err)
 		}
@@ -194,12 +194,12 @@ func (bs *Server) StreamBlocks(_ *ptypes.Empty, stream ethpb.BeaconChain_StreamB
 				}
 				headState, err := bs.HeadFetcher.HeadState(bs.Ctx)
 				if err != nil {
-					log.WithError(err).WithField("blockSlot", data.SignedBlock.Block.Slot).Warn("Could not get head state to verify block signature")
+					log.WithError(err).WithField("blockSlot", data.SignedBlock.Block.Slot).Error("Could not get head state")
 					continue
 				}
 
 				if err := blocks.VerifyBlockSignature(headState, data.SignedBlock); err != nil {
-					log.WithError(err).WithField("blockSlot", data.SignedBlock.Block.Slot).Warn("Could not verify block signature")
+					log.WithError(err).WithField("blockSlot", data.SignedBlock.Block.Slot).Error("Could not verify block signature")
 					continue
 				}
 				if err := stream.Send(data.SignedBlock); err != nil {
@@ -266,33 +266,25 @@ func (bs *Server) chainHeadRetrieval(ctx context.Context) (*ethpb.ChainHead, err
 		return nil, status.Error(codes.Internal, "Could not get genesis block")
 	}
 
-	var b *ethpb.SignedBeaconBlock
-
 	finalizedCheckpoint := bs.FinalizationFetcher.FinalizedCheckpt()
-	if isGenesis(finalizedCheckpoint) {
-		b = genBlock
-	} else {
-		b, err = bs.BeaconDB.Block(ctx, bytesutil.ToBytes32(finalizedCheckpoint.Root))
+	if !isGenesis(finalizedCheckpoint) {
+		b, err := bs.BeaconDB.Block(ctx, bytesutil.ToBytes32(finalizedCheckpoint.Root))
 		if err != nil || b == nil || b.Block == nil {
 			return nil, status.Error(codes.Internal, "Could not get finalized block")
 		}
 	}
 
 	justifiedCheckpoint := bs.FinalizationFetcher.CurrentJustifiedCheckpt()
-	if isGenesis(justifiedCheckpoint) {
-		b = genBlock
-	} else {
-		b, err = bs.BeaconDB.Block(ctx, bytesutil.ToBytes32(justifiedCheckpoint.Root))
+	if !isGenesis(justifiedCheckpoint) {
+		b, err := bs.BeaconDB.Block(ctx, bytesutil.ToBytes32(justifiedCheckpoint.Root))
 		if err != nil || b == nil || b.Block == nil {
 			return nil, status.Error(codes.Internal, "Could not get justified block")
 		}
 	}
 
 	prevJustifiedCheckpoint := bs.FinalizationFetcher.PreviousJustifiedCheckpt()
-	if isGenesis(prevJustifiedCheckpoint) {
-		b = genBlock
-	} else {
-		b, err = bs.BeaconDB.Block(ctx, bytesutil.ToBytes32(prevJustifiedCheckpoint.Root))
+	if !isGenesis(prevJustifiedCheckpoint) {
+		b, err := bs.BeaconDB.Block(ctx, bytesutil.ToBytes32(prevJustifiedCheckpoint.Root))
 		if err != nil || b == nil || b.Block == nil {
 			return nil, status.Error(codes.Internal, "Could not get prev justified block")
 		}

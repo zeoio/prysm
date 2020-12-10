@@ -72,10 +72,6 @@ func (s *Service) updateHead(ctx context.Context, balances []uint64) error {
 		return err
 	}
 
-	if err := s.updateRecentCanonicalBlocks(ctx, headRoot); err != nil {
-		return err
-	}
-
 	// Save head to the local service cache.
 	return s.saveHead(ctx, headRoot)
 }
@@ -252,34 +248,6 @@ func (s *Service) hasHeadState() bool {
 	return s.head != nil && s.head.state != nil
 }
 
-// This updates recent canonical block mapping. It uses input head root and retrieves
-// all the canonical block roots that are ancestor of the input head block root.
-func (s *Service) updateRecentCanonicalBlocks(ctx context.Context, headRoot [32]byte) error {
-	ctx, span := trace.StartSpan(ctx, "blockChain.updateRecentCanonicalBlocks")
-	defer span.End()
-
-	s.recentCanonicalBlocksLock.Lock()
-	defer s.recentCanonicalBlocksLock.Unlock()
-
-	s.recentCanonicalBlocks = make(map[[32]byte]bool)
-	s.recentCanonicalBlocks[headRoot] = true
-	nodes := s.forkChoiceStore.Nodes()
-	node := s.forkChoiceStore.Node(headRoot)
-	if node == nil {
-		return nil
-	}
-
-	for node.Parent() != protoarray.NonExistentNode {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		node = nodes[node.Parent()]
-		s.recentCanonicalBlocks[node.Root()] = true
-	}
-
-	return nil
-}
-
 // This caches justified state balances to be used for fork choice.
 func (s *Service) cacheJustifiedStateBalances(ctx context.Context, justifiedRoot [32]byte) error {
 	if err := s.beaconDB.SaveBlocks(ctx, s.getInitSyncBlocks()); err != nil {
@@ -308,7 +276,7 @@ func (s *Service) cacheJustifiedStateBalances(ctx context.Context, justifiedRoot
 	epoch := helpers.CurrentEpoch(justifiedState)
 
 	justifiedBalances := make([]uint64, justifiedState.NumValidators())
-	if err := justifiedState.ReadFromEveryValidator(func(idx int, val *stateTrie.ReadOnlyValidator) error {
+	if err := justifiedState.ReadFromEveryValidator(func(idx int, val stateTrie.ReadOnlyValidator) error {
 		if helpers.IsActiveValidatorUsingTrie(val, epoch) {
 			justifiedBalances[idx] = val.EffectiveBalance()
 		} else {

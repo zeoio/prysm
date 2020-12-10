@@ -5,79 +5,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	ptypes "github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
+	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
+
 	pb "github.com/prysmaticlabs/prysm/proto/validator/accounts/v2"
 	"github.com/prysmaticlabs/prysm/shared/bls"
 	"github.com/prysmaticlabs/prysm/shared/event"
+	"github.com/prysmaticlabs/prysm/shared/featureconfig"
+	"github.com/prysmaticlabs/prysm/shared/fileutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
-	v2 "github.com/prysmaticlabs/prysm/validator/accounts/v2"
-	"github.com/prysmaticlabs/prysm/validator/accounts/v2/wallet"
-	v2keymanager "github.com/prysmaticlabs/prysm/validator/keymanager/v2"
-	"github.com/prysmaticlabs/prysm/validator/keymanager/v2/direct"
-	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
+	"github.com/prysmaticlabs/prysm/validator/accounts"
+	"github.com/prysmaticlabs/prysm/validator/accounts/wallet"
+	"github.com/prysmaticlabs/prysm/validator/keymanager"
+	"github.com/prysmaticlabs/prysm/validator/keymanager/imported"
 )
 
-func createDirectWalletWithAccounts(t testing.TB, numAccounts int) (*Server, [][]byte) {
-	localWalletDir := setupWalletDir(t)
-	defaultWalletPath = localWalletDir
-	ctx := context.Background()
-	strongPass := "29384283xasjasd32%%&*@*#*"
-	w, err := v2.CreateWalletWithKeymanager(ctx, &v2.CreateWalletConfig{
-		WalletCfg: &wallet.Config{
-			WalletDir:      defaultWalletPath,
-			KeymanagerKind: v2keymanager.Direct,
-			WalletPassword: strongPass,
-		},
-		SkipMnemonicConfirm: true,
-	})
-	require.NoError(t, err)
-	require.NoError(t, w.SaveHashedPassword(ctx))
-	km, err := w.InitializeKeymanager(ctx, true /* skip mnemonic confirm */)
-	require.NoError(t, err)
-	ss := &Server{
-		keymanager:            km,
-		wallet:                w,
-		walletDir:             defaultWalletPath,
-		walletInitializedFeed: new(event.Feed),
-	}
-	// First we import accounts into the wallet.
-	encryptor := keystorev4.New()
-	keystores := make([]string, numAccounts)
-	pubKeys := make([][]byte, len(keystores))
-	for i := 0; i < len(keystores); i++ {
-		privKey := bls.RandKey()
-		pubKey := fmt.Sprintf("%x", privKey.PublicKey().Marshal())
-		id, err := uuid.NewRandom()
-		require.NoError(t, err)
-		cryptoFields, err := encryptor.Encrypt(privKey.Marshal(), strongPass)
-		require.NoError(t, err)
-		item := &v2keymanager.Keystore{
-			Crypto:  cryptoFields,
-			ID:      id.String(),
-			Version: encryptor.Version(),
-			Pubkey:  pubKey,
-			Name:    encryptor.Name(),
-		}
-		encodedFile, err := json.MarshalIndent(item, "", "\t")
-		require.NoError(t, err)
-		keystores[i] = string(encodedFile)
-		pubKeys[i] = privKey.PublicKey().Marshal()
-	}
-	_, err = ss.ImportKeystores(ctx, &pb.ImportKeystoresRequest{
-		KeystoresImported: keystores,
-		KeystoresPassword: strongPass,
-	})
-	require.NoError(t, err)
-	ss.keymanager, err = ss.wallet.InitializeKeymanager(ctx, true /* skip mnemonic confirm */)
-	require.NoError(t, err)
-	return ss, pubKeys
-}
-
-func TestServer_CreateWallet_Direct(t *testing.T) {
+func TestServer_CreateWallet_Imported(t *testing.T) {
 	localWalletDir := setupWalletDir(t)
 	defaultWalletPath = localWalletDir
 	ctx := context.Background()
@@ -87,13 +35,12 @@ func TestServer_CreateWallet_Direct(t *testing.T) {
 		walletDir:             defaultWalletPath,
 	}
 	_, err := s.Signup(ctx, &pb.AuthRequest{
-		Password:  strongPass,
-		WalletDir: defaultWalletPath,
+		Password:             strongPass,
+		PasswordConfirmation: strongPass,
 	})
 	require.NoError(t, err)
 	req := &pb.CreateWalletRequest{
-		WalletPath:     localWalletDir,
-		Keymanager:     pb.KeymanagerKind_DIRECT,
+		Keymanager:     pb.KeymanagerKind_IMPORTED,
 		WalletPassword: strongPass,
 	}
 	// We delete the directory at defaultWalletPath as CreateWallet will return an error if it tries to create a wallet
@@ -112,13 +59,14 @@ func TestServer_CreateWallet_Direct(t *testing.T) {
 	encryptor := keystorev4.New()
 	keystores := make([]string, 3)
 	for i := 0; i < len(keystores); i++ {
-		privKey := bls.RandKey()
+		privKey, err := bls.RandKey()
+		require.NoError(t, err)
 		pubKey := fmt.Sprintf("%x", privKey.PublicKey().Marshal())
 		id, err := uuid.NewRandom()
 		require.NoError(t, err)
 		cryptoFields, err := encryptor.Encrypt(privKey.Marshal(), strongPass)
 		require.NoError(t, err)
-		item := &v2keymanager.Keystore{
+		item := &keymanager.Keystore{
 			Crypto:  cryptoFields,
 			ID:      id.String(),
 			Version: encryptor.Version(),
@@ -141,9 +89,9 @@ func TestServer_CreateWallet_Derived(t *testing.T) {
 	strongPass := "29384283xasjasd32%%&*@*#*"
 	s := &Server{
 		walletInitializedFeed: new(event.Feed),
+		walletDir:             localWalletDir,
 	}
 	req := &pb.CreateWalletRequest{
-		WalletPath:     localWalletDir,
 		Keymanager:     pb.KeymanagerKind_DERIVED,
 		WalletPassword: strongPass,
 		NumAccounts:    0,
@@ -183,161 +131,26 @@ func TestServer_WalletConfig(t *testing.T) {
 		walletDir:             defaultWalletPath,
 	}
 	// We attempt to create the wallet.
-	w, err := v2.CreateWalletWithKeymanager(ctx, &v2.CreateWalletConfig{
+	w, err := accounts.CreateWalletWithKeymanager(ctx, &accounts.CreateWalletConfig{
 		WalletCfg: &wallet.Config{
 			WalletDir:      defaultWalletPath,
-			KeymanagerKind: v2keymanager.Direct,
+			KeymanagerKind: keymanager.Imported,
 			WalletPassword: strongPass,
 		},
 		SkipMnemonicConfirm: true,
 	})
 	require.NoError(t, err)
-	require.NoError(t, w.SaveHashedPassword(ctx))
-	km, err := w.InitializeKeymanager(ctx, true /* skip mnemonic confirm */)
+	km, err := w.InitializeKeymanager(ctx)
 	require.NoError(t, err)
 	s.wallet = w
 	s.keymanager = km
 	resp, err := s.WalletConfig(ctx, &ptypes.Empty{})
 	require.NoError(t, err)
 
-	expectedConfig := direct.DefaultKeymanagerOpts()
-	enc, err := json.Marshal(expectedConfig)
-	require.NoError(t, err)
-	var jsonMap map[string]string
-	require.NoError(t, json.Unmarshal(enc, &jsonMap))
 	assert.DeepEqual(t, resp, &pb.WalletResponse{
-		WalletPath:       localWalletDir,
-		KeymanagerKind:   pb.KeymanagerKind_DIRECT,
-		KeymanagerConfig: jsonMap,
+		WalletPath:     localWalletDir,
+		KeymanagerKind: pb.KeymanagerKind_IMPORTED,
 	})
-}
-
-func TestServer_ChangePassword_Preconditions(t *testing.T) {
-	localWalletDir := setupWalletDir(t)
-	defaultWalletPath = localWalletDir
-	ctx := context.Background()
-	strongPass := "29384283xasjasd32%%&*@*#*"
-	ss := &Server{
-		walletDir: defaultWalletPath,
-	}
-	_, err := ss.ChangePassword(ctx, &pb.ChangePasswordRequest{
-		CurrentPassword: strongPass,
-		Password:        "",
-	})
-	assert.ErrorContains(t, noWalletMsg, err)
-	// We attempt to create the wallet.
-	w, err := v2.CreateWalletWithKeymanager(ctx, &v2.CreateWalletConfig{
-		WalletCfg: &wallet.Config{
-			WalletDir:      defaultWalletPath,
-			KeymanagerKind: v2keymanager.Derived,
-			WalletPassword: strongPass,
-		},
-		SkipMnemonicConfirm: true,
-	})
-	require.NoError(t, err)
-	km, err := w.InitializeKeymanager(ctx, true /* skip mnemonic confirm */)
-	require.NoError(t, err)
-	ss.wallet = w
-	ss.walletInitialized = true
-	ss.keymanager = km
-	_, err = ss.ChangePassword(ctx, &pb.ChangePasswordRequest{
-		CurrentPassword: strongPass,
-		Password:        "",
-	})
-	assert.ErrorContains(t, "Could not validate wallet password", err)
-	_, err = ss.ChangePassword(ctx, &pb.ChangePasswordRequest{
-		CurrentPassword:      strongPass,
-		Password:             "abc",
-		PasswordConfirmation: "def",
-	})
-	assert.ErrorContains(t, "does not match", err)
-}
-
-func TestServer_ChangePassword_DirectKeymanager(t *testing.T) {
-	ss, _ := createDirectWalletWithAccounts(t, 1)
-	newPassword := "NewPassw0rdz%%%%pass"
-	_, err := ss.ChangePassword(context.Background(), &pb.ChangePasswordRequest{
-		CurrentPassword:      ss.wallet.Password(),
-		Password:             newPassword,
-		PasswordConfirmation: newPassword,
-	})
-	require.NoError(t, err)
-	assert.Equal(t, ss.wallet.Password(), newPassword)
-}
-
-func TestServer_ChangePassword_DerivedKeymanager(t *testing.T) {
-	localWalletDir := setupWalletDir(t)
-	defaultWalletPath = localWalletDir
-	ctx := context.Background()
-	strongPass := "29384283xasjasd32%%&*@*#*"
-	// We attempt to create the wallet.
-	w, err := v2.CreateWalletWithKeymanager(ctx, &v2.CreateWalletConfig{
-		WalletCfg: &wallet.Config{
-			WalletDir:      defaultWalletPath,
-			KeymanagerKind: v2keymanager.Derived,
-			WalletPassword: strongPass,
-		},
-		SkipMnemonicConfirm: true,
-	})
-	require.NoError(t, err)
-	km, err := w.InitializeKeymanager(ctx, true /* skip mnemonic confirm */)
-	require.NoError(t, err)
-	ss := &Server{
-		walletDir: defaultWalletPath,
-	}
-	ss.wallet = w
-	ss.walletInitialized = true
-	ss.keymanager = km
-	newPassword := "NewPassw0rdz%%%%pass"
-	_, err = ss.ChangePassword(ctx, &pb.ChangePasswordRequest{
-		CurrentPassword:      strongPass,
-		Password:             newPassword,
-		PasswordConfirmation: newPassword,
-	})
-	require.NoError(t, err)
-	assert.Equal(t, w.Password(), newPassword)
-}
-
-func TestServer_HasWallet(t *testing.T) {
-	localWalletDir := setupWalletDir(t)
-	defaultWalletPath = localWalletDir
-	ctx := context.Background()
-	strongPass := "29384283xasjasd32%%&*@*#*"
-	ss := &Server{
-		walletDir: defaultWalletPath,
-	}
-	// First delete the created folder and check the response
-	require.NoError(t, os.RemoveAll(defaultWalletPath))
-	resp, err := ss.HasWallet(ctx, &ptypes.Empty{})
-	require.NoError(t, err)
-	assert.DeepEqual(t, &pb.HasWalletResponse{
-		WalletExists: false,
-	}, resp)
-
-	// We now create the folder but without a valid wallet, i.e. lacking a subdirectory such as 'direct'
-	// We expect an empty directory to behave similarly as if there were no directory
-	require.NoError(t, os.MkdirAll(defaultWalletPath, os.ModePerm))
-	resp, err = ss.HasWallet(ctx, &ptypes.Empty{})
-	require.NoError(t, err)
-	assert.DeepEqual(t, &pb.HasWalletResponse{
-		WalletExists: false,
-	}, resp)
-
-	// We attempt to create the wallet.
-	_, err = v2.CreateWalletWithKeymanager(ctx, &v2.CreateWalletConfig{
-		WalletCfg: &wallet.Config{
-			WalletDir:      defaultWalletPath,
-			KeymanagerKind: v2keymanager.Direct,
-			WalletPassword: strongPass,
-		},
-		SkipMnemonicConfirm: true,
-	})
-	require.NoError(t, err)
-	resp, err = ss.HasWallet(ctx, &ptypes.Empty{})
-	require.NoError(t, err)
-	assert.DeepEqual(t, &pb.HasWalletResponse{
-		WalletExists: true,
-	}, resp)
 }
 
 func TestServer_ImportKeystores_FailedPreconditions_WrongKeymanagerKind(t *testing.T) {
@@ -345,23 +158,23 @@ func TestServer_ImportKeystores_FailedPreconditions_WrongKeymanagerKind(t *testi
 	defaultWalletPath = localWalletDir
 	ctx := context.Background()
 	strongPass := "29384283xasjasd32%%&*@*#*"
-	w, err := v2.CreateWalletWithKeymanager(ctx, &v2.CreateWalletConfig{
+	w, err := accounts.CreateWalletWithKeymanager(ctx, &accounts.CreateWalletConfig{
 		WalletCfg: &wallet.Config{
 			WalletDir:      defaultWalletPath,
-			KeymanagerKind: v2keymanager.Derived,
+			KeymanagerKind: keymanager.Derived,
 			WalletPassword: strongPass,
 		},
 		SkipMnemonicConfirm: true,
 	})
 	require.NoError(t, err)
-	km, err := w.InitializeKeymanager(ctx, true /* skip mnemonic confirm */)
+	km, err := w.InitializeKeymanager(ctx)
 	require.NoError(t, err)
 	ss := &Server{
 		wallet:     w,
 		keymanager: km,
 	}
 	_, err = ss.ImportKeystores(ctx, &pb.ImportKeystoresRequest{})
-	assert.ErrorContains(t, "Only Non-HD wallets can import", err)
+	assert.ErrorContains(t, "Only imported wallets can import more", err)
 }
 
 func TestServer_ImportKeystores_FailedPreconditions(t *testing.T) {
@@ -369,17 +182,16 @@ func TestServer_ImportKeystores_FailedPreconditions(t *testing.T) {
 	defaultWalletPath = localWalletDir
 	ctx := context.Background()
 	strongPass := "29384283xasjasd32%%&*@*#*"
-	w, err := v2.CreateWalletWithKeymanager(ctx, &v2.CreateWalletConfig{
+	w, err := accounts.CreateWalletWithKeymanager(ctx, &accounts.CreateWalletConfig{
 		WalletCfg: &wallet.Config{
 			WalletDir:      defaultWalletPath,
-			KeymanagerKind: v2keymanager.Direct,
+			KeymanagerKind: keymanager.Imported,
 			WalletPassword: strongPass,
 		},
 		SkipMnemonicConfirm: true,
 	})
 	require.NoError(t, err)
-	require.NoError(t, w.SaveHashedPassword(ctx))
-	km, err := w.InitializeKeymanager(ctx, true /* skip mnemonic confirm */)
+	km, err := w.InitializeKeymanager(ctx)
 	require.NoError(t, err)
 	ss := &Server{
 		keymanager: km,
@@ -401,22 +213,21 @@ func TestServer_ImportKeystores_FailedPreconditions(t *testing.T) {
 }
 
 func TestServer_ImportKeystores_OK(t *testing.T) {
-	direct.ResetCaches()
+	imported.ResetCaches()
 	localWalletDir := setupWalletDir(t)
 	defaultWalletPath = localWalletDir
 	ctx := context.Background()
 	strongPass := "29384283xasjasd32%%&*@*#*"
-	w, err := v2.CreateWalletWithKeymanager(ctx, &v2.CreateWalletConfig{
+	w, err := accounts.CreateWalletWithKeymanager(ctx, &accounts.CreateWalletConfig{
 		WalletCfg: &wallet.Config{
 			WalletDir:      defaultWalletPath,
-			KeymanagerKind: v2keymanager.Direct,
+			KeymanagerKind: keymanager.Imported,
 			WalletPassword: strongPass,
 		},
 		SkipMnemonicConfirm: true,
 	})
 	require.NoError(t, err)
-	require.NoError(t, w.SaveHashedPassword(ctx))
-	km, err := w.InitializeKeymanager(ctx, true /* skip mnemonic confirm */)
+	km, err := w.InitializeKeymanager(ctx)
 	require.NoError(t, err)
 	ss := &Server{
 		keymanager:            km,
@@ -429,13 +240,14 @@ func TestServer_ImportKeystores_OK(t *testing.T) {
 	keystores := make([]string, 3)
 	pubKeys := make([][]byte, 3)
 	for i := 0; i < len(keystores); i++ {
-		privKey := bls.RandKey()
+		privKey, err := bls.RandKey()
+		require.NoError(t, err)
 		pubKey := fmt.Sprintf("%x", privKey.PublicKey().Marshal())
 		id, err := uuid.NewRandom()
 		require.NoError(t, err)
 		cryptoFields, err := encryptor.Encrypt(privKey.Marshal(), strongPass)
 		require.NoError(t, err)
-		item := &v2keymanager.Keystore{
+		item := &keymanager.Keystore{
 			Crypto:  cryptoFields,
 			ID:      id.String(),
 			Version: encryptor.Version(),
@@ -463,9 +275,36 @@ func TestServer_ImportKeystores_OK(t *testing.T) {
 		ImportedPublicKeys: pubKeys,
 	}, res)
 
-	km, err = w.InitializeKeymanager(ctx, true /* skip mnemonic confirm */)
+	km, err = w.InitializeKeymanager(ctx)
 	require.NoError(t, err)
 	keys, err = km.FetchValidatingPublicKeys(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 3, len(keys))
+}
+
+func Test_writeWalletPasswordToDisk(t *testing.T) {
+	walletDir := setupWalletDir(t)
+	resetCfg := featureconfig.InitWithReset(&featureconfig.Flags{
+		WriteWalletPasswordOnWebOnboarding: false,
+	})
+	defer resetCfg()
+	err := writeWalletPasswordToDisk(walletDir, "somepassword")
+	require.NoError(t, err)
+
+	// Expected a silent failure if the feature flag is not enabled.
+	passwordFilePath := filepath.Join(walletDir, wallet.DefaultWalletPasswordFile)
+	assert.Equal(t, false, fileutil.FileExists(passwordFilePath))
+	resetCfg = featureconfig.InitWithReset(&featureconfig.Flags{
+		WriteWalletPasswordOnWebOnboarding: true,
+	})
+	defer resetCfg()
+	err = writeWalletPasswordToDisk(walletDir, "somepassword")
+	require.NoError(t, err)
+
+	// File should have been written.
+	assert.Equal(t, true, fileutil.FileExists(passwordFilePath))
+
+	// Attempting to write again should trigger an error.
+	err = writeWalletPasswordToDisk(walletDir, "somepassword")
+	require.NotNil(t, err)
 }

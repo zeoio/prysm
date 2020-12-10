@@ -13,13 +13,14 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/proto/beacon/db"
 	ethereum_beacon_p2p_v1 "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
+	"github.com/prysmaticlabs/prysm/shared/backuputil"
 )
 
 // ReadOnlyDatabase defines a struct which only has read access to database methods.
 type ReadOnlyDatabase interface {
 	// Block related methods.
 	Block(ctx context.Context, blockRoot [32]byte) (*eth.SignedBeaconBlock, error)
-	Blocks(ctx context.Context, f *filters.QueryFilter) ([]*eth.SignedBeaconBlock, error)
+	Blocks(ctx context.Context, f *filters.QueryFilter) ([]*eth.SignedBeaconBlock, [][32]byte, error)
 	BlockRoots(ctx context.Context, f *filters.QueryFilter) ([][32]byte, error)
 	HasBlock(ctx context.Context, blockRoot [32]byte) bool
 	GenesisBlock(ctx context.Context) (*eth.SignedBeaconBlock, error)
@@ -84,6 +85,8 @@ type NoHeadAccessDatabase interface {
 
 	// Run any required database migrations.
 	RunMigrations(ctx context.Context) error
+
+	CleanUpDirtyStates(ctx context.Context, slotsPerArchivedPoint uint64) error
 }
 
 // HeadAccessDatabase defines a struct with access to reading chain head data.
@@ -93,18 +96,14 @@ type HeadAccessDatabase interface {
 	// Block related methods.
 	HeadBlock(ctx context.Context) (*eth.SignedBeaconBlock, error)
 	SaveHeadBlockRoot(ctx context.Context, blockRoot [32]byte) error
-	// State related methods.
-	HeadState(ctx context.Context) (*state.BeaconState, error)
 }
 
 // Database interface with full access.
 type Database interface {
 	io.Closer
+	backuputil.BackupExporter
 	HeadAccessDatabase
 
 	DatabasePath() string
 	ClearDB() error
-
-	// Backup and restore methods
-	Backup(ctx context.Context) error
 }

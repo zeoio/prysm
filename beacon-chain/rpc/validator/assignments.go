@@ -39,6 +39,9 @@ func (vs *Server) StreamDuties(req *ethpb.DutiesRequest, stream ethpb.BeaconNode
 	// If we are post-genesis time, then set the current epoch to
 	// the number epochs since the genesis time, otherwise 0 by default.
 	genesisTime := vs.GenesisTimeFetcher.GenesisTime()
+	if genesisTime.IsZero() {
+		return status.Error(codes.Unavailable, "genesis time is not set")
+	}
 	var currentEpoch uint64
 	if genesisTime.Before(timeutils.Now()) {
 		currentEpoch = slotutil.EpochsSinceGenesis(vs.GenesisTimeFetcher.GenesisTime())
@@ -128,13 +131,11 @@ func (vs *Server) duties(ctx context.Context, req *ethpb.DutiesRequest) (*ethpb.
 		return nil, status.Errorf(codes.Internal, "Could not compute committee assignments: %v", err)
 	}
 	// Query the next epoch assignments for committee subnet subscriptions.
-	nextCommitteeAssignments, nextProposerIndexToSlots, err := helpers.CommitteeAssignments(s, req.Epoch+1)
+	nextCommitteeAssignments, _, err := helpers.CommitteeAssignments(s, req.Epoch+1)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not compute next committee assignments: %v", err)
 	}
 
-	var committeeIDs []uint64
-	var nextCommitteeIDs []uint64
 	validatorAssignments := make([]*ethpb.DutiesResponse_Duty, 0, len(req.PublicKeys))
 	nextValidatorAssignments := make([]*ethpb.DutiesResponse_Duty, 0, len(req.PublicKeys))
 	for _, pubKey := range req.PublicKeys {
@@ -153,16 +154,15 @@ func (vs *Server) duties(ctx context.Context, req *ethpb.DutiesRequest) (*ethpb.
 			assignment.Status = assignmentStatus(s, idx)
 			assignment.ProposerSlots = proposerIndexToSlots[idx]
 
+			// The next epoch has no lookup for proposer indexes.
 			nextAssignment.ValidatorIndex = idx
 			nextAssignment.Status = assignmentStatus(s, idx)
-			nextAssignment.ProposerSlots = nextProposerIndexToSlots[idx]
 
 			ca, ok := committeeAssignments[idx]
 			if ok {
 				assignment.Committee = ca.Committee
 				assignment.AttesterSlot = ca.AttesterSlot
 				assignment.CommitteeIndex = ca.CommitteeIndex
-				committeeIDs = append(committeeIDs, ca.CommitteeIndex)
 			}
 			// Save the next epoch assignments.
 			ca, ok = nextCommitteeAssignments[idx]
@@ -170,7 +170,6 @@ func (vs *Server) duties(ctx context.Context, req *ethpb.DutiesRequest) (*ethpb.
 				nextAssignment.Committee = ca.Committee
 				nextAssignment.AttesterSlot = ca.AttesterSlot
 				nextAssignment.CommitteeIndex = ca.CommitteeIndex
-				nextCommitteeIDs = append(nextCommitteeIDs, ca.CommitteeIndex)
 			}
 		} else {
 			// If the validator isn't in the beacon state, try finding their deposit to determine their status.

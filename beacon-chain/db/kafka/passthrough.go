@@ -22,8 +22,8 @@ func (e Exporter) ClearDB() error {
 }
 
 // Backup -- passthrough.
-func (e Exporter) Backup(ctx context.Context) error {
-	return e.db.Backup(ctx)
+func (e Exporter) Backup(ctx context.Context, outputDir string) error {
+	return e.db.Backup(ctx, outputDir)
 }
 
 // Block -- passthrough.
@@ -37,7 +37,7 @@ func (e Exporter) HeadBlock(ctx context.Context) (*eth.SignedBeaconBlock, error)
 }
 
 // Blocks -- passthrough.
-func (e Exporter) Blocks(ctx context.Context, f *filters.QueryFilter) ([]*eth.SignedBeaconBlock, error) {
+func (e Exporter) Blocks(ctx context.Context, f *filters.QueryFilter) ([]*eth.SignedBeaconBlock, [][32]byte, error) {
 	return e.db.Blocks(ctx, f)
 }
 
@@ -59,11 +59,6 @@ func (e Exporter) State(ctx context.Context, blockRoot [32]byte) (*state.BeaconS
 // StateSummary -- passthrough.
 func (e Exporter) StateSummary(ctx context.Context, blockRoot [32]byte) (*pb.StateSummary, error) {
 	return e.db.StateSummary(ctx, blockRoot)
-}
-
-// HeadState -- passthrough.
-func (e Exporter) HeadState(ctx context.Context) (*state.BeaconState, error) {
-	return e.db.HeadState(ctx)
 }
 
 // GenesisState -- passthrough.
@@ -253,5 +248,10 @@ func (e Exporter) LastArchivedSlot(ctx context.Context) (uint64, error) {
 
 // RunMigrations -- passthrough
 func (e Exporter) RunMigrations(ctx context.Context) error {
+	return e.db.RunMigrations(ctx)
+}
+
+// CleanUpDirtyStates -- passthrough
+func (e Exporter) CleanUpDirtyStates(ctx context.Context, slotsPerArchivedPoint uint64) error {
 	return e.db.RunMigrations(ctx)
 }

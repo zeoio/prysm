@@ -10,6 +10,7 @@ import (
 	gethlog "github.com/ethereum/go-ethereum/log"
 	golog "github.com/ipfs/go-log/v2"
 	joonix "github.com/joonix/log"
+	"github.com/prysmaticlabs/prysm/beacon-chain/db"
 	"github.com/prysmaticlabs/prysm/beacon-chain/flags"
 	"github.com/prysmaticlabs/prysm/beacon-chain/node"
 	"github.com/prysmaticlabs/prysm/shared/cmd"
@@ -39,7 +40,7 @@ var appFlags = []cli.Flag{
 	flags.MinSyncPeers,
 	flags.ContractDeploymentBlock,
 	flags.SetGCPercent,
-	flags.UnsafeSync,
+	flags.HeadSync,
 	flags.DisableSync,
 	flags.DisableDiscv5,
 	flags.BlockBatchLimit,
@@ -50,10 +51,14 @@ var appFlags = []cli.Flag{
 	flags.InteropGenesisTimeFlag,
 	flags.SlotsPerArchivedPoint,
 	flags.EnableDebugRPCEndpoints,
+	flags.SubscribeToAllSubnets,
 	flags.HistoricalSlasherNode,
 	flags.ChainID,
 	flags.NetworkID,
 	flags.WeakSubjectivityCheckpt,
+	flags.Eth1HeaderReqLimit,
+	cmd.EnableBackupWebhookFlag,
+	cmd.BackupWebhookOutputDir,
 	cmd.MinimalConfigFlag,
 	cmd.E2EConfigFlag,
 	cmd.RPCMaxPageSizeFlag,
@@ -96,6 +101,8 @@ var appFlags = []cli.Flag{
 	cmd.ChainConfigFileFlag,
 	cmd.GrpcMaxCallRecvMsgSizeFlag,
 	cmd.AcceptTosFlag,
+	cmd.RestoreSourceFileFlag,
+	cmd.RestoreTargetDirFlag,
 }
 
 func init() {
@@ -109,16 +116,15 @@ func main() {
 	app.Usage = "this is a beacon chain implementation for Ethereum 2.0"
 	app.Action = startNode
 	app.Version = version.GetVersion()
+	app.Commands = []*cli.Command{
+		db.DatabaseCommands,
+	}
 
 	app.Flags = appFlags
 
 	app.Before = func(ctx *cli.Context) error {
 		// Load flags from config file, if specified.
 		if err := cmd.LoadFlagsFromConfig(ctx, app.Flags); err != nil {
-			return err
-		}
-		// verify if ToS accepted
-		if err := tos.VerifyTosAcceptedOrPrompt(ctx); err != nil {
 			return err
 		}
 
@@ -155,6 +161,10 @@ func main() {
 			}
 		}
 
+		if err := cmd.ExpandWeb3EndpointIfFile(ctx, flags.HTTPWeb3ProviderFlag); err != nil {
+			return err
+		}
+
 		if ctx.IsSet(flags.SetGCPercent.Name) {
 			runtimeDebug.SetGCPercent(ctx.Int(flags.SetGCPercent.Name))
 		}
@@ -171,11 +181,15 @@ func main() {
 
 	if err := app.Run(os.Args); err != nil {
 		log.Error(err.Error())
-		os.Exit(1)
 	}
 }
 
 func startNode(ctx *cli.Context) error {
+	// verify if ToS accepted
+	if err := tos.VerifyTosAcceptedOrPrompt(ctx); err != nil {
+		return err
+	}
+
 	verbosity := ctx.String(cmd.VerbosityFlag.Name)
 	level, err := logrus.ParseLevel(verbosity)
 	if err != nil {

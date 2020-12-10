@@ -16,6 +16,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/logutil"
 	"github.com/prysmaticlabs/prysm/shared/tos"
 	"github.com/prysmaticlabs/prysm/shared/version"
+	"github.com/prysmaticlabs/prysm/slasher/db"
 	"github.com/prysmaticlabs/prysm/slasher/flags"
 	"github.com/prysmaticlabs/prysm/slasher/node"
 	"github.com/sirupsen/logrus"
@@ -26,6 +27,11 @@ import (
 var log = logrus.WithField("prefix", "main")
 
 func startSlasher(cliCtx *cli.Context) error {
+	// verify if ToS accepted
+	if err := tos.VerifyTosAcceptedOrPrompt(cliCtx); err != nil {
+		return err
+	}
+
 	verbosity := cliCtx.String(cmd.VerbosityFlag.Name)
 	level, err := logrus.ParseLevel(verbosity)
 	if err != nil {
@@ -53,6 +59,8 @@ var appFlags = []cli.Flag{
 	cmd.MonitoringHostFlag,
 	flags.MonitoringPortFlag,
 	cmd.DisableMonitoringFlag,
+	cmd.EnableBackupWebhookFlag,
+	cmd.BackupWebhookOutputDir,
 	cmd.LogFileName,
 	cmd.LogFormat,
 	cmd.ClearDB,
@@ -73,6 +81,7 @@ var appFlags = []cli.Flag{
 	flags.EnableHistoricalDetectionFlag,
 	flags.SpanCacheSize,
 	cmd.AcceptTosFlag,
+	flags.HighestAttCacheSize,
 }
 
 func init() {
@@ -84,15 +93,14 @@ func main() {
 	app.Name = "hash slinging slasher"
 	app.Usage = `launches an Ethereum Serenity slasher server that interacts with a beacon chain.`
 	app.Version = version.GetVersion()
+	app.Commands = []*cli.Command{
+		db.DatabaseCommands,
+	}
 	app.Flags = appFlags
 	app.Action = startSlasher
 	app.Before = func(ctx *cli.Context) error {
 		// Load flags from config file, if specified.
 		if err := cmd.LoadFlagsFromConfig(ctx, app.Flags); err != nil {
-			return err
-		}
-		// verify if ToS accepted
-		if err := tos.VerifyTosAcceptedOrPrompt(ctx); err != nil {
 			return err
 		}
 

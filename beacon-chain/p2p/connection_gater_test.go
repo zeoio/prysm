@@ -44,6 +44,10 @@ func TestPeer_AtMaxLimit(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
+	for i := 0; i < highWatermarkBuffer; i++ {
+		addPeer(t, s.peers, peers.PeerConnected)
+	}
+
 	// create alternate host
 	listen, err = multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", ipAddr2, 3000))
 	require.NoError(t, err, "Failed to p2p listen")
@@ -64,6 +68,9 @@ func TestPeer_AtMaxLimit(t *testing.T) {
 func TestService_InterceptBannedIP(t *testing.T) {
 	s := &Service{
 		ipLimiter: leakybucket.NewCollector(ipLimit, ipBurst, false),
+		peers: peers.NewStatus(context.Background(), &peers.StatusConfig{
+			ScorerParams: &scorers.Config{},
+		}),
 	}
 	var err error
 	s.addrFilter, err = configureFilter(&Config{})
@@ -144,6 +151,9 @@ func TestPeerAllowList(t *testing.T) {
 	require.NoError(t, err, "Failed to p2p listen")
 	s := &Service{
 		ipLimiter: leakybucket.NewCollector(ipLimit, ipBurst, false),
+		peers: peers.NewStatus(context.Background(), &peers.StatusConfig{
+			ScorerParams: &scorers.Config{},
+		}),
 	}
 	s.addrFilter, err = configureFilter(&Config{AllowListCIDR: cidr})
 	require.NoError(t, err)
@@ -187,6 +197,9 @@ func TestPeerDenyList(t *testing.T) {
 	require.NoError(t, err, "Failed to p2p listen")
 	s := &Service{
 		ipLimiter: leakybucket.NewCollector(ipLimit, ipBurst, false),
+		peers: peers.NewStatus(context.Background(), &peers.StatusConfig{
+			ScorerParams: &scorers.Config{},
+		}),
 	}
 	s.addrFilter, err = configureFilter(&Config{DenyListCIDR: []string{cidr}})
 	require.NoError(t, err)
@@ -219,6 +232,9 @@ func TestPeerDenyList(t *testing.T) {
 func TestService_InterceptAddrDial_Allow(t *testing.T) {
 	s := &Service{
 		ipLimiter: leakybucket.NewCollector(ipLimit, ipBurst, false),
+		peers: peers.NewStatus(context.Background(), &peers.StatusConfig{
+			ScorerParams: &scorers.Config{},
+		}),
 	}
 	var err error
 	cidr := "212.67.89.112/16"

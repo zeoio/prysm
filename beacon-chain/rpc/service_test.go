@@ -28,8 +28,6 @@ func TestLifecycle_OK(t *testing.T) {
 	}
 	rpcService := NewService(context.Background(), &Config{
 		Port:                "7348",
-		CertFlag:            "alice.crt",
-		KeyFlag:             "alice.key",
 		SyncService:         &mockSync.Sync{IsSyncing: false},
 		BlockReceiver:       chainService,
 		AttestationReceiver: chainService,
@@ -47,7 +45,7 @@ func TestLifecycle_OK(t *testing.T) {
 
 func TestStatus_CredentialError(t *testing.T) {
 	credentialErr := errors.New("credentialError")
-	s := &Service{credentialError: credentialErr}
+	s := &Service{credentialError: credentialErr, syncService: &mockSync.Sync{IsSyncing: false}}
 
 	assert.ErrorContains(t, s.credentialError.Error(), s.Status())
 }

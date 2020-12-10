@@ -12,6 +12,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	pubsubpb "github.com/libp2p/go-libp2p-pubsub/pb"
 	pb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	mockChain "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
 	db "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
@@ -19,6 +20,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
 	p2ptest "github.com/prysmaticlabs/prysm/beacon-chain/p2p/testing"
 	mockSync "github.com/prysmaticlabs/prysm/beacon-chain/sync/initial-sync/testing"
+	"github.com/prysmaticlabs/prysm/shared/abool"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
@@ -37,6 +39,7 @@ func TestSubscribe_ReceivesValidMessage(t *testing.T) {
 			ValidatorsRoot: [32]byte{'A'},
 			Genesis:        time.Now(),
 		},
+		chainStarted: abool.New(),
 	}
 	var err error
 	p2p.Digest, err = r.forkDigest()
@@ -81,6 +84,7 @@ func TestSubscribe_ReceivesAttesterSlashing(t *testing.T) {
 		chain:                     chainService,
 		db:                        d,
 		seenAttesterSlashingCache: c,
+		chainStarted:              abool.New(),
 	}
 	topic := "/eth2/%x/attester_slashing"
 	var wg sync.WaitGroup
@@ -132,6 +136,7 @@ func TestSubscribe_ReceivesProposerSlashing(t *testing.T) {
 		chain:                     chainService,
 		db:                        d,
 		seenProposerSlashingCache: c,
+		chainStarted:              abool.New(),
 	}
 	topic := "/eth2/%x/proposer_slashing"
 	var wg sync.WaitGroup
@@ -171,7 +176,8 @@ func TestSubscribe_HandlesPanic(t *testing.T) {
 			Genesis:        time.Now(),
 			ValidatorsRoot: [32]byte{'A'},
 		},
-		p2p: p,
+		p2p:          p,
+		chainStarted: abool.New(),
 	}
 	var err error
 	p.Digest, err = r.forkDigest()
@@ -202,7 +208,8 @@ func TestRevalidateSubscription_CorrectlyFormatsTopic(t *testing.T) {
 			Genesis:        time.Now(),
 			ValidatorsRoot: [32]byte{'A'},
 		},
-		p2p: p,
+		p2p:          p,
+		chainStarted: abool.New(),
 	}
 	digest, err := r.forkDigest()
 	require.NoError(t, err)
@@ -223,7 +230,7 @@ func TestRevalidateSubscription_CorrectlyFormatsTopic(t *testing.T) {
 	require.NoError(t, err)
 
 	r.reValidateSubscriptions(subscriptions, []uint64{2}, defaultTopic, digest)
-	require.LogsDoNotContain(t, hook, "Failed to unregister topic validator")
+	require.LogsDoNotContain(t, hook, "Could not unregister topic validator")
 }
 
 func TestStaticSubnets(t *testing.T) {
@@ -235,7 +242,8 @@ func TestStaticSubnets(t *testing.T) {
 			Genesis:        time.Now(),
 			ValidatorsRoot: [32]byte{'A'},
 		},
-		p2p: p,
+		p2p:          p,
+		chainStarted: abool.New(),
 	}
 	defaultTopic := "/eth2/%x/beacon_attestation_%d"
 	r.subscribeStaticWithSubnets(defaultTopic, r.noopValidator, func(_ context.Context, msg proto.Message) error {
@@ -269,9 +277,17 @@ func Test_wrapAndReportValidation(t *testing.T) {
 				v: func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
 					return pubsub.ValidationAccept
 				},
+				msg: &pubsub.Message{
+					Message: &pubsubpb.Message{
+						Topic: func() *string {
+							s := "foo"
+							return &s
+						}(),
+					},
+				},
 				chainstarted: false,
 			},
-			want: pubsub.ValidationReject,
+			want: pubsub.ValidationIgnore,
 		},
 		{
 			name: "validator panicked",
@@ -281,6 +297,14 @@ func Test_wrapAndReportValidation(t *testing.T) {
 					panic("oh no!")
 				},
 				chainstarted: true,
+				msg: &pubsub.Message{
+					Message: &pubsubpb.Message{
+						Topic: func() *string {
+							s := "foo"
+							return &s
+						}(),
+					},
+				},
 			},
 			want: pubsub.ValidationIgnore,
 		},
@@ -292,14 +316,39 @@ func Test_wrapAndReportValidation(t *testing.T) {
 					return pubsub.ValidationAccept
 				},
 				chainstarted: true,
+				msg: &pubsub.Message{
+					Message: &pubsubpb.Message{
+						Topic: func() *string {
+							s := "foo"
+							return &s
+						}(),
+					},
+				},
 			},
 			want: pubsub.ValidationAccept,
+		},
+		{
+			name: "nil topic",
+			args: args{
+				topic: "foo",
+				v: func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
+					return pubsub.ValidationAccept
+				},
+				msg: &pubsub.Message{
+					Message: &pubsubpb.Message{
+						Topic: nil,
+					},
+				},
+			},
+			want: pubsub.ValidationReject,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			chainStarted := abool.New()
+			chainStarted.SetTo(tt.args.chainstarted)
 			s := &Service{
-				chainStarted: tt.args.chainstarted,
+				chainStarted: chainStarted,
 			}
 			_, v := s.wrapAndReportValidation(tt.args.topic, tt.args.v)
 			got := v(context.Background(), tt.args.pid, tt.args.msg)

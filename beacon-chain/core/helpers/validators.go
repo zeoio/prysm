@@ -1,6 +1,8 @@
 package helpers
 
 import (
+	"bytes"
+
 	"github.com/pkg/errors"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	stateTrie "github.com/prysmaticlabs/prysm/beacon-chain/state"
@@ -25,7 +27,7 @@ func IsActiveValidator(validator *ethpb.Validator, epoch uint64) bool {
 }
 
 // IsActiveValidatorUsingTrie checks if a read only validator is active.
-func IsActiveValidatorUsingTrie(validator *stateTrie.ReadOnlyValidator, epoch uint64) bool {
+func IsActiveValidatorUsingTrie(validator stateTrie.ReadOnlyValidator, epoch uint64) bool {
 	return checkValidatorActiveStatus(validator.ActivationEpoch(), validator.ExitEpoch(), epoch)
 }
 
@@ -47,7 +49,7 @@ func IsSlashableValidator(activationEpoch, withdrawableEpoch uint64, slashed boo
 }
 
 // IsSlashableValidatorUsingTrie checks if a read only validator is slashable.
-func IsSlashableValidatorUsingTrie(val *stateTrie.ReadOnlyValidator, epoch uint64) bool {
+func IsSlashableValidatorUsingTrie(val stateTrie.ReadOnlyValidator, epoch uint64) bool {
 	return checkValidatorSlashable(val.ActivationEpoch(), val.WithdrawableEpoch(), val.Slashed(), epoch)
 }
 
@@ -83,7 +85,7 @@ func ActiveValidatorIndices(state *stateTrie.BeaconState, epoch uint64) ([]uint6
 		return activeIndices, nil
 	}
 	var indices []uint64
-	if err := state.ReadFromEveryValidator(func(idx int, val *stateTrie.ReadOnlyValidator) error {
+	if err := state.ReadFromEveryValidator(func(idx int, val stateTrie.ReadOnlyValidator) error {
 		if IsActiveValidatorUsingTrie(val, epoch) {
 			indices = append(indices, uint64(idx))
 		}
@@ -115,7 +117,7 @@ func ActiveValidatorCount(state *stateTrie.BeaconState, epoch uint64) (uint64, e
 	}
 
 	count := uint64(0)
-	if err := state.ReadFromEveryValidator(func(idx int, val *stateTrie.ReadOnlyValidator) error {
+	if err := state.ReadFromEveryValidator(func(idx int, val stateTrie.ReadOnlyValidator) error {
 		if IsActiveValidatorUsingTrie(val, epoch) {
 			count++
 		}
@@ -175,26 +177,35 @@ func ValidatorChurnLimit(activeValidatorCount uint64) (uint64, error) {
 //    return compute_proposer_index(state, indices, seed)
 func BeaconProposerIndex(state *stateTrie.BeaconState) (uint64, error) {
 	e := CurrentEpoch(state)
-	// The cache uses the block root of the previous epoch's last slot as key. (e.g. Starting epoch 1, slot 32, the key would be block root at slot 31)
+	// The cache uses the state root of the previous epoch - minimum_seed_lookahead last slot as key. (e.g. Starting epoch 1, slot 32, the key would be block root at slot 31)
 	// For simplicity, the node will skip caching of genesis epoch.
-	if e > params.BeaconConfig().GenesisEpoch {
-		s, err := EndSlot(PrevEpoch(state))
+	if e > params.BeaconConfig().GenesisEpoch+params.BeaconConfig().MinSeedLookahead {
+		wantedEpoch := PrevEpoch(state)
+		if wantedEpoch >= params.BeaconConfig().MinSeedLookahead {
+			wantedEpoch -= params.BeaconConfig().MinSeedLookahead
+		}
+		s, err := EndSlot(wantedEpoch)
 		if err != nil {
 			return 0, err
 		}
-		r, err := BlockRootAtSlot(state, s)
+		r, err := StateRootAtSlot(state, s)
 		if err != nil {
 			return 0, err
 		}
-		proposerIndices, err := proposerIndicesCache.ProposerIndices(bytesutil.ToBytes32(r))
-		if err != nil {
-			return 0, errors.Wrap(err, "could not interface with committee cache")
-		}
-		if proposerIndices != nil {
-			return proposerIndices[state.Slot()%params.BeaconConfig().SlotsPerEpoch], nil
-		}
-		if err := UpdateProposerIndicesInCache(state, e); err != nil {
-			return 0, errors.Wrap(err, "could not update committee cache")
+		if r != nil && !bytes.Equal(r, params.BeaconConfig().ZeroHash[:]) {
+			proposerIndices, err := proposerIndicesCache.ProposerIndices(bytesutil.ToBytes32(r))
+			if err != nil {
+				return 0, errors.Wrap(err, "could not interface with committee cache")
+			}
+			if proposerIndices != nil {
+				if len(proposerIndices) != int(params.BeaconConfig().SlotsPerEpoch) {
+					return 0, errors.Errorf("length of proposer indices is not equal %d to slots per epoch", len(proposerIndices))
+				}
+				return proposerIndices[state.Slot()%params.BeaconConfig().SlotsPerEpoch], nil
+			}
+			if err := UpdateProposerIndicesInCache(state, e); err != nil {
+				return 0, errors.Wrap(err, "could not update committee cache")
+			}
 		}
 	}
 
@@ -308,7 +319,7 @@ func IsEligibleForActivationQueue(validator *ethpb.Validator) bool {
 
 // IsEligibleForActivationQueueUsingTrie checks if the read-only validator is eligible to
 // be placed into the activation queue.
-func IsEligibleForActivationQueueUsingTrie(validator *stateTrie.ReadOnlyValidator) bool {
+func IsEligibleForActivationQueueUsingTrie(validator stateTrie.ReadOnlyValidator) bool {
 	return isEligibileForActivationQueue(validator.ActivationEligibilityEpoch(), validator.EffectiveBalance())
 }
 
@@ -337,7 +348,7 @@ func IsEligibleForActivation(state *stateTrie.BeaconState, validator *ethpb.Vali
 }
 
 // IsEligibleForActivationUsingTrie checks if the validator is eligible for activation.
-func IsEligibleForActivationUsingTrie(state *stateTrie.BeaconState, validator *stateTrie.ReadOnlyValidator) bool {
+func IsEligibleForActivationUsingTrie(state *stateTrie.BeaconState, validator stateTrie.ReadOnlyValidator) bool {
 	cpt := state.FinalizedCheckpoint()
 	if cpt == nil {
 		return false
