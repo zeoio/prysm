@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/prysmaticlabs/prysm/beacon-chain/operations/attestations"
+
 	ptypes "github.com/gogo/protobuf/types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1"
 	ethpb_alpha "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
@@ -15,6 +17,57 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 )
+
+func TestServer_ListPoolAttestations(t *testing.T) {
+	ctx := context.Background()
+	beaconState, privKeys := testutil.DeterministicGenesisState(t, 64)
+	count := uint64(10)
+	attestationsInPool := make([]*ethpb_alpha.Attestation, count)
+	v1Attestations := make([]*ethpb.Attestation, count)
+	for i := 0; i < len(attestationsInPool); i++ {
+		atts, err := testutil.GenerateAttestations(beaconState, privKeys, 1, uint64(i), true)
+		require.NoError(t, err)
+
+		attestationsInPool[i] = atts[0]
+		v1Attestations[i] = migration.V1Alpha1AttestationToV1(atts[0])
+	}
+	tests := []struct {
+		name    string
+		pending []*ethpb_alpha.Attestation
+		want    []*ethpb.Attestation
+	}{
+		{
+			name:    "Empty list",
+			pending: []*ethpb_alpha.Attestation{},
+			want:    []*ethpb.Attestation{},
+		},
+		{
+			name:    "One",
+			pending: attestationsInPool[0:1],
+			want:    v1Attestations[0:1],
+		},
+		{
+			name:    "All",
+			pending: attestationsInPool,
+			want:    v1Attestations,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := attestations.NewPool()
+			for _, att := range tt.pending {
+				require.NoError(t, pool.SaveAggregatedAttestation(att))
+			}
+			p := &Server{
+				ChainInfoFetcher: &mock.ChainService{State: beaconState},
+				AttestationsPool: pool,
+			}
+			atts, err := p.ListPoolAttestations(ctx, &ethpb.AttestationsPoolRequest{})
+			require.NoError(t, err)
+			assert.DeepEqual(t, tt.want, atts.Data)
+		})
+	}
+}
 
 func TestServer_ListPoolAttesterSlashings(t *testing.T) {
 	ctx := context.Background()
