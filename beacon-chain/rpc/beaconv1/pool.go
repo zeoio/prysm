@@ -3,6 +3,7 @@ package beaconv1
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	ptypes "github.com/gogo/protobuf/types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1"
@@ -15,16 +16,20 @@ import (
 // ListPoolAttestations retrieves attestations known by the node but
 // not necessarily incorporated into any block.
 func (bs *Server) ListPoolAttestations(ctx context.Context, req *ethpb.AttestationsPoolRequest) (*ethpb.AttestationsPoolResponse, error) {
-	atts := bs.AttestationsPool.AggregatedAttestations()
+	atts, err := bs.AttestationsPool.UnaggregatedAttestations()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not get unaggregated attestations: %v", err)
+	}
+	fmt.Println(len(atts))
 	filtered := make([]*ethpb_alpha.Attestation, 0, len(atts))
 	for _, item := range atts {
-		slotEqual := req.Slot != 0 && req.Slot == item.Data.Slot
-		committeeEqual := req.CommitteeIndex != 0 && req.CommitteeIndex == item.Data.CommitteeIndex
-		if slotEqual && committeeEqual {
-			filtered = append(filtered, item)
-		} else if slotEqual || committeeEqual {
-			filtered = append(filtered, item)
-		}
+		//slotEqual := req.Slot != 0 && req.Slot == item.Data.Slot
+		//committeeEqual := req.CommitteeIndex != 0 && req.CommitteeIndex == item.Data.CommitteeIndex
+		//if slotEqual && committeeEqual {
+		//	filtered = append(filtered, item)
+		//} else if slotEqual || committeeEqual {
+		filtered = append(filtered, item)
+		//}
 	}
 	v1Atts := make([]*ethpb.Attestation, len(filtered))
 	for i, att := range filtered {

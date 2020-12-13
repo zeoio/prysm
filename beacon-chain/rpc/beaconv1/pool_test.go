@@ -21,15 +21,14 @@ import (
 func TestServer_ListPoolAttestations(t *testing.T) {
 	ctx := context.Background()
 	beaconState, privKeys := testutil.DeterministicGenesisState(t, 64)
-	count := uint64(10)
-	attestationsInPool := make([]*ethpb_alpha.Attestation, count)
-	v1Attestations := make([]*ethpb.Attestation, count)
+	v1Attestations := make([]*ethpb.Attestation, 4)
+	atts1, err := testutil.GenerateAttestations(beaconState, privKeys, 2, 0, true)
+	require.NoError(t, err)
+	atts2, err := testutil.GenerateAttestations(beaconState, privKeys, 2, 1, true)
+	require.NoError(t, err)
+	attestationsInPool := append(atts1, atts2...)
 	for i := 0; i < len(attestationsInPool); i++ {
-		atts, err := testutil.GenerateAttestations(beaconState, privKeys, 1, uint64(i), true)
-		require.NoError(t, err)
-
-		attestationsInPool[i] = atts[0]
-		v1Attestations[i] = migration.V1Alpha1AttestationToV1(atts[0])
+		v1Attestations[i] = migration.V1Alpha1AttestationToV1(attestationsInPool[0])
 	}
 	tests := []struct {
 		name    string
@@ -56,7 +55,7 @@ func TestServer_ListPoolAttestations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			pool := attestations.NewPool()
 			for _, att := range tt.pending {
-				require.NoError(t, pool.SaveAggregatedAttestation(att))
+				require.NoError(t, pool.SaveUnaggregatedAttestation(att))
 			}
 			p := &Server{
 				ChainInfoFetcher: &mock.ChainService{State: beaconState},
@@ -64,7 +63,10 @@ func TestServer_ListPoolAttestations(t *testing.T) {
 			}
 			atts, err := p.ListPoolAttestations(ctx, &ethpb.AttestationsPoolRequest{})
 			require.NoError(t, err)
-			assert.DeepEqual(t, tt.want, atts.Data)
+			require.Equal(t, len(tt.want), len(atts.Data))
+			for i, _ := range tt.want {
+				assert.DeepEqual(t, tt.want[i], atts.Data[i])
+			}
 		})
 	}
 }
