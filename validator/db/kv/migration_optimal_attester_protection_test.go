@@ -302,7 +302,7 @@ func TestStore_RollbackOptimalAttesterProtectionMigration(t *testing.T) {
 				require.NoError(t, validatorDB.ClearDB(), "Failed to clear database")
 			})
 			tt.setup(t, validatorDB)
-			require.NoError(t, validatorDB.migrateOptimalAttesterProtection(ctx))
+			require.NoError(t, validatorDB.migrateOptimalAttesterProtection(context.Background()))
 			require.NoError(t, validatorDB.RollbackOptimalAttesterProtectionMigration(context.Background()))
 			tt.eval(t, validatorDB)
 		})
