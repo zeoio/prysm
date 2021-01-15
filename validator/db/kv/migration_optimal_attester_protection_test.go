@@ -241,3 +241,69 @@ func setupDBWithoutMigration(dirPath string) (*Store, error) {
 	}
 	return kv, prometheus.Register(createBoltCollector(kv.db))
 }
+
+func TestStore_RollbackOptimalAttesterProtectionMigration(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, validatorDB *Store)
+		eval  func(t *testing.T, validatorDB *Store)
+	}{
+		{
+			name: "unsets the migration, if set",
+			setup: func(t *testing.T, validatorDB *Store) {
+				// Run migration
+				require.NoError(t, validatorDB.migrateOptimalAttesterProtection(context.Background()))
+			},
+			eval: func(t *testing.T, validatorDB *Store) {
+				// Ensure the migration is not marked as complete.
+				err := validatorDB.view(func(tx *bolt.Tx) error {
+					data := tx.Bucket(migrationsBucket).Get(migrationOptimalAttesterProtectionKey)
+					require.DeepNotEqual(t, data, migrationCompleted)
+					return nil
+				})
+				require.NoError(t, err)
+			},
+		}, {
+			name:  "unsets the migration, even if unset already (no panic)",
+			setup: func(t *testing.T, validatorDB *Store) {},
+			eval: func(t *testing.T, validatorDB *Store) {
+				// Ensure the migration is not marked as complete.
+				err := validatorDB.view(func(tx *bolt.Tx) error {
+					data := tx.Bucket(migrationsBucket).Get(migrationOptimalAttesterProtectionKey)
+					require.DeepNotEqual(t, data, migrationCompleted)
+					return nil
+				})
+				require.NoError(t, err)
+			},
+		}, {
+			name: "data saved after migration must be rolled back",
+			setup: func(t *testing.T, validatorDB *Store) {
+				ctx := context.Background()
+
+				// Create existing data
+
+				// Run migration
+				require.NoError(t, validatorDB.migrateOptimalAttesterProtection(ctx))
+
+				// TODO: Add new history
+			},
+			eval: func(t *testing.T, validatorDB *Store) {
+				// TODO: Ensure history was added to old bucket
+			},
+		},
+
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			validatorDB, err := setupDBWithoutMigration(t.TempDir())
+			require.NoError(t, err, "Failed to instantiate DB")
+			t.Cleanup(func() {
+				require.NoError(t, validatorDB.Close(), "Failed to close database")
+				require.NoError(t, validatorDB.ClearDB(), "Failed to clear database")
+			})
+			tt.setup(t, validatorDB)
+			require.NoError(t, validatorDB.RollbackOptimalAttesterProtectionMigration(context.Background()))
+			tt.eval(t, validatorDB)
+		})
+	}
+}

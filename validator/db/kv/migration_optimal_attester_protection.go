@@ -115,3 +115,17 @@ func (store *Store) migrateOptimalAttesterProtection(ctx context.Context) error 
 		return nil
 	})
 }
+
+
+// RollbackOptimalAttesterProtectionMigration may be use to "undo" the optimal attestation
+// protection migration in the event that the client needs to downgrade from v1.1.0 to an older
+// version.
+func (store *Store) RollbackOptimalAttesterProtectionMigration(ctx context.Context) error {
+	return store.db.Update(func(tx *bolt.Tx) error {
+		mb := tx.Bucket(migrationsBucket)
+		if err := mb.Delete(migrationOptimalAttesterProtectionKey); err != nil {
+			return err
+		}
+		return nil
+	})
+}
