@@ -13,7 +13,7 @@ go_library(
         "submit.go",
         "validator_retrieval.go",
     ],
-    importpath = "github.com/prysmaticlabs/prysm/slasher/beaconclient",
+    importpath = "github.com/prysmaticlabs/prysm/slasher/internal/beaconclient",
     visibility = ["//slasher:__subpackages__"],
     deps = [
         "//beacon-chain/core/helpers:go_default_library",

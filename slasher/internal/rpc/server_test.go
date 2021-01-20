@@ -18,7 +18,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
-	"github.com/prysmaticlabs/prysm/slasher/beaconclient"
+	"github.com/prysmaticlabs/prysm/slasher/internal/beaconclient"
 	testDB "github.com/prysmaticlabs/prysm/slasher/internal/db/testing"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection"
 )

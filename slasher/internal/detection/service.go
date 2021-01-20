@@ -6,8 +6,8 @@ import (
 
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/event"
-	"github.com/prysmaticlabs/prysm/slasher/beaconclient"
 	"github.com/prysmaticlabs/prysm/slasher/db"
+	"github.com/prysmaticlabs/prysm/slasher/internal/beaconclient"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/iface"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection/proposals"
