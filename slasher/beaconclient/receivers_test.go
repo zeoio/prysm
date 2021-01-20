@@ -12,7 +12,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/mock"
 	"github.com/prysmaticlabs/prysm/shared/slotutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
-	testDB "github.com/prysmaticlabs/prysm/slasher/db/testing"
+	testDB "github.com/prysmaticlabs/prysm/slasher/internal/db/testing"
 )
 
 func TestService_ReceiveBlocks(t *testing.T) {

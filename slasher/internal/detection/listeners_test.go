@@ -8,7 +8,7 @@ import (
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/event"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
-	testDB "github.com/prysmaticlabs/prysm/slasher/db/testing"
+	testDB "github.com/prysmaticlabs/prysm/slasher/internal/db/testing"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection/proposals"
 	"github.com/sirupsen/logrus"

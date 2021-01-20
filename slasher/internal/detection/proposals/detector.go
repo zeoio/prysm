@@ -8,7 +8,7 @@ import (
 
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/slasher/db"
-	status "github.com/prysmaticlabs/prysm/slasher/db/types"
+	status "github.com/prysmaticlabs/prysm/slasher/internal/db/types"
 	"go.opencensus.io/trace"
 )
 

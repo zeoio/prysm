@@ -10,7 +10,7 @@ import (
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	slashpb "github.com/prysmaticlabs/prysm/proto/slashing"
 	"github.com/prysmaticlabs/prysm/shared/backuputil"
-	"github.com/prysmaticlabs/prysm/slasher/db/types"
+	"github.com/prysmaticlabs/prysm/slasher/internal/db/types"
 	detectionTypes "github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/types"
 )
 

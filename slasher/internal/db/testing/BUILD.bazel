@@ -5,11 +5,11 @@ go_library(
     name = "go_default_library",
     testonly = True,
     srcs = ["setup_db.go"],
-    importpath = "github.com/prysmaticlabs/prysm/slasher/db/testing",
+    importpath = "github.com/prysmaticlabs/prysm/slasher/internal/db/testing",
     visibility = ["//slasher:__subpackages__"],
     deps = [
         "//slasher/db:go_default_library",
-        "//slasher/db/kv:go_default_library",
+        "//slasher/internal/db/kv:go_default_library",
     ],
 )
 
@@ -20,6 +20,6 @@ go_test(
     deps = [
         "//shared/testutil/require:go_default_library",
         "//slasher/db:go_default_library",
-        "//slasher/db/kv:go_default_library",
+        "//slasher/internal/db/kv:go_default_library",
     ],
 )

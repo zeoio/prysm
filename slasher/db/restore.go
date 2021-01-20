@@ -9,7 +9,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/cmd"
 	"github.com/prysmaticlabs/prysm/shared/fileutil"
 	"github.com/prysmaticlabs/prysm/shared/promptutil"
-	"github.com/prysmaticlabs/prysm/slasher/db/kv"
+	"github.com/prysmaticlabs/prysm/slasher/internal/db/kv"
 	"github.com/urfave/cli/v2"
 )
 

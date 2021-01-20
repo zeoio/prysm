@@ -7,7 +7,7 @@ import (
 
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
-	dbTypes "github.com/prysmaticlabs/prysm/slasher/db/types"
+	dbTypes "github.com/prysmaticlabs/prysm/slasher/internal/db/types"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/types"
 )
 

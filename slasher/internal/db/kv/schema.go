@@ -2,7 +2,7 @@ package kv
 
 import (
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
-	"github.com/prysmaticlabs/prysm/slasher/db/types"
+	"github.com/prysmaticlabs/prysm/slasher/internal/db/types"
 )
 
 const (

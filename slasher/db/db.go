@@ -2,7 +2,7 @@
 package db
 
 import (
-	"github.com/prysmaticlabs/prysm/slasher/db/kv"
+	"github.com/prysmaticlabs/prysm/slasher/internal/db/kv"
 )
 
 // NewDB initializes a new DB.

@@ -25,7 +25,7 @@ go_test(
         ":go_default_library",
         "//shared/testutil/assert:go_default_library",
         "//shared/testutil/require:go_default_library",
-        "//slasher/db/testing:go_default_library",
-        "//slasher/db/types:go_default_library",
+        "//slasher/internal/db/testing:go_default_library",
+        "//slasher/internal/db/types:go_default_library",
     ],
 )

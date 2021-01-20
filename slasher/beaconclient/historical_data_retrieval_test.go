@@ -11,7 +11,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
-	testDB "github.com/prysmaticlabs/prysm/slasher/db/testing"
+	testDB "github.com/prysmaticlabs/prysm/slasher/internal/db/testing"
 	logTest "github.com/sirupsen/logrus/hooks/test"
 )
 

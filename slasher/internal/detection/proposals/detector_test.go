@@ -8,7 +8,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
-	testDB "github.com/prysmaticlabs/prysm/slasher/db/testing"
+	testDB "github.com/prysmaticlabs/prysm/slasher/internal/db/testing"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection/proposals/iface"
 	testDetect "github.com/prysmaticlabs/prysm/slasher/internal/detection/testing"
 )

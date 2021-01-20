@@ -8,8 +8,8 @@ import (
 
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
-	testDB "github.com/prysmaticlabs/prysm/slasher/db/testing"
-	dbTypes "github.com/prysmaticlabs/prysm/slasher/db/types"
+	testDB "github.com/prysmaticlabs/prysm/slasher/internal/db/testing"
+	dbTypes "github.com/prysmaticlabs/prysm/slasher/internal/db/types"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/types"
 )
 

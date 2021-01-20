@@ -9,7 +9,7 @@ import (
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
-	"github.com/prysmaticlabs/prysm/slasher/db/types"
+	"github.com/prysmaticlabs/prysm/slasher/internal/db/types"
 	"gopkg.in/d4l3k/messagediff.v1"
 )
 

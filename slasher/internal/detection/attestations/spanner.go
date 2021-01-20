@@ -13,7 +13,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/featureconfig"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/slasher/db"
-	dbTypes "github.com/prysmaticlabs/prysm/slasher/db/types"
+	dbTypes "github.com/prysmaticlabs/prysm/slasher/internal/db/types"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/iface"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/types"
 	"go.opencensus.io/trace"

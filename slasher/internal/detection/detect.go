@@ -12,7 +12,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/hashutil"
 	"github.com/prysmaticlabs/prysm/shared/slashutil"
 	"github.com/prysmaticlabs/prysm/shared/sliceutil"
-	status "github.com/prysmaticlabs/prysm/slasher/db/types"
+	status "github.com/prysmaticlabs/prysm/slasher/internal/db/types"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/types"
 	"go.opencensus.io/trace"
 )

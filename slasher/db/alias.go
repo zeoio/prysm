@@ -1,6 +1,6 @@
 package db
 
-import "github.com/prysmaticlabs/prysm/slasher/db/iface"
+import "github.com/prysmaticlabs/prysm/slasher/internal/db/iface"
 
 // ReadOnlyDatabase exposes the Slasher's DB read only functions for all slasher related buckets.
 type ReadOnlyDatabase = iface.ReadOnlyDatabase
