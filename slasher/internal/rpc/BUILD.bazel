@@ -8,7 +8,7 @@ go_library(
         "server.go",
         "service.go",
     ],
-    importpath = "github.com/prysmaticlabs/prysm/slasher/rpc",
+    importpath = "github.com/prysmaticlabs/prysm/slasher/internal/rpc",
     visibility = ["//visibility:public"],
     deps = [
         "//beacon-chain/core/helpers:go_default_library",

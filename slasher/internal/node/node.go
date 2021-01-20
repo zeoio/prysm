@@ -29,7 +29,7 @@ import (
 	"github.com/prysmaticlabs/prysm/slasher/internal/db/kv"
 	"github.com/prysmaticlabs/prysm/slasher/internal/detection"
 	"github.com/prysmaticlabs/prysm/slasher/internal/flags"
-	"github.com/prysmaticlabs/prysm/slasher/rpc"
+	"github.com/prysmaticlabs/prysm/slasher/internal/rpc"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 )
