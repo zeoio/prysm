@@ -11,7 +11,7 @@ go_library(
         "span_cache.go",
         "validators_cache.go",
     ],
-    importpath = "github.com/prysmaticlabs/prysm/slasher/cache",
+    importpath = "github.com/prysmaticlabs/prysm/slasher/internal/cache",
     visibility = ["//slasher:__subpackages__"],
     deps = [
         "//proto/slashing:go_default_library",

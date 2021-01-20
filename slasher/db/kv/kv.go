@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/shared/fileutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
-	"github.com/prysmaticlabs/prysm/slasher/cache"
+	"github.com/prysmaticlabs/prysm/slasher/internal/cache"
 	bolt "go.etcd.io/bbolt"
 	"go.opencensus.io/trace"
 )
