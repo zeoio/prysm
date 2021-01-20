@@ -9,8 +9,8 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	testDB "github.com/prysmaticlabs/prysm/slasher/db/testing"
-	"github.com/prysmaticlabs/prysm/slasher/detection/proposals/iface"
-	testDetect "github.com/prysmaticlabs/prysm/slasher/detection/testing"
+	"github.com/prysmaticlabs/prysm/slasher/internal/detection/proposals/iface"
+	testDetect "github.com/prysmaticlabs/prysm/slasher/internal/detection/testing"
 )
 
 var _ iface.ProposalsDetector = (*ProposeDetector)(nil)

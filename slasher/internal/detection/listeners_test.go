@@ -9,8 +9,8 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/event"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	testDB "github.com/prysmaticlabs/prysm/slasher/db/testing"
-	"github.com/prysmaticlabs/prysm/slasher/detection/attestations"
-	"github.com/prysmaticlabs/prysm/slasher/detection/proposals"
+	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations"
+	"github.com/prysmaticlabs/prysm/slasher/internal/detection/proposals"
 	"github.com/sirupsen/logrus"
 	logTest "github.com/sirupsen/logrus/hooks/test"
 )

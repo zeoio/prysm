@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
-	"github.com/prysmaticlabs/prysm/slasher/detection/attestations/types"
+	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/types"
 )
 
 func TestSpan_Marshal_Unmarshal(t *testing.T) {

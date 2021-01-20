@@ -11,7 +11,7 @@ import (
 	slashpb "github.com/prysmaticlabs/prysm/proto/slashing"
 	"github.com/prysmaticlabs/prysm/shared/backuputil"
 	"github.com/prysmaticlabs/prysm/slasher/db/types"
-	detectionTypes "github.com/prysmaticlabs/prysm/slasher/detection/attestations/types"
+	detectionTypes "github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/types"
 )
 
 // ReadOnlyDatabase represents a read only database with functions that do not modify the DB.

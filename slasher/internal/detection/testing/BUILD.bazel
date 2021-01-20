@@ -3,7 +3,7 @@ load("@prysm//tools/go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = ["utils.go"],
-    importpath = "github.com/prysmaticlabs/prysm/slasher/detection/testing",
+    importpath = "github.com/prysmaticlabs/prysm/slasher/internal/detection/testing",
     visibility = ["//visibility:public"],
     deps = [
         "//shared/rand:go_default_library",

@@ -12,7 +12,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	testDB "github.com/prysmaticlabs/prysm/slasher/db/testing"
 	dbTypes "github.com/prysmaticlabs/prysm/slasher/db/types"
-	"github.com/prysmaticlabs/prysm/slasher/detection/attestations/types"
+	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/types"
 )
 
 func indexedAttestation(source, target uint64, indices []uint64) *ethpb.IndexedAttestation {

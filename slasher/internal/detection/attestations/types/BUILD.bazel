@@ -7,7 +7,7 @@ go_library(
         "epoch_store.go",
         "types.go",
     ],
-    importpath = "github.com/prysmaticlabs/prysm/slasher/detection/attestations/types",
+    importpath = "github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/types",
     visibility = ["//visibility:public"],
     deps = [
         "//shared/bytesutil:go_default_library",

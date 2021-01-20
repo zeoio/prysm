@@ -14,7 +14,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/slasher/beaconclient"
 	"github.com/prysmaticlabs/prysm/slasher/db"
-	"github.com/prysmaticlabs/prysm/slasher/detection"
+	"github.com/prysmaticlabs/prysm/slasher/internal/detection"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 	"google.golang.org/grpc/codes"

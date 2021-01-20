@@ -20,7 +20,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	"github.com/prysmaticlabs/prysm/slasher/beaconclient"
 	testDB "github.com/prysmaticlabs/prysm/slasher/db/testing"
-	"github.com/prysmaticlabs/prysm/slasher/detection"
+	"github.com/prysmaticlabs/prysm/slasher/internal/detection"
 )
 
 func TestServer_IsSlashableAttestation(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"context"
 
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
-	"github.com/prysmaticlabs/prysm/slasher/detection/attestations/iface"
-	"github.com/prysmaticlabs/prysm/slasher/detection/attestations/types"
+	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/iface"
+	"github.com/prysmaticlabs/prysm/slasher/internal/detection/attestations/types"
 )
 
 var _ iface.SpanDetector = (*MockSpanDetector)(nil)
