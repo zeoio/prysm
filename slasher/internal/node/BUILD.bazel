@@ -7,7 +7,7 @@ go_library(
         "log.go",
         "node.go",
     ],
-    importpath = "github.com/prysmaticlabs/prysm/slasher/node",
+    importpath = "github.com/prysmaticlabs/prysm/slasher/internal/node",
     visibility = ["//slasher:__subpackages__"],
     deps = [
         "//shared:go_default_library",

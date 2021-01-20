@@ -18,7 +18,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/version"
 	"github.com/prysmaticlabs/prysm/slasher/db"
 	"github.com/prysmaticlabs/prysm/slasher/internal/flags"
-	"github.com/prysmaticlabs/prysm/slasher/node"
+	"github.com/prysmaticlabs/prysm/slasher/internal/node"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
