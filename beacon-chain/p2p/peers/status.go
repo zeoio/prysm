@@ -61,7 +61,7 @@ const (
 	maxLimitBuffer = 150
 
 	// InboundRatio is the proportion of our connected peer limit at which we will allow inbound peers.
-	InboundRatio = float64(1)
+	InboundRatio = float64(0.8)
 )
 
 // Status is the structure holding the peer status information.
