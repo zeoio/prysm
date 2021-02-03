@@ -412,6 +412,14 @@ func (v *validator) UpdateDuties(ctx context.Context, slot uint64) error {
 		}
 	}()
 
+	// DEBUG: Does this make a diff?????????
+	req.Epoch++
+	_, err = v.validatorClient.GetDuties(ctx, req)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
 	return nil
 }
 
