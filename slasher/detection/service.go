@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/prysmaticlabs/eth2-types"
+	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/event"
 	"github.com/prysmaticlabs/prysm/slasher/beaconclient"
@@ -75,8 +75,8 @@ type Config struct {
 	HistoricalDetection   bool
 }
 
-// New instantiates a new service.
-func New(ctx context.Context, cfg *Config) *Service {
+// NewService instantiates a new service.
+func NewService(ctx context.Context, cfg *Config) *Service {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Service{
 		ctx:                   ctx,
