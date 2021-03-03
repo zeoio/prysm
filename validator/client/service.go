@@ -290,10 +290,10 @@ func ConstructDialOptions(
 		),
 		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}),
 		grpc.WithUnaryInterceptor(middleware.ChainUnaryClient(
-			grpc_opentracing.UnaryClientInterceptor(),
-			grpc_prometheus.UnaryClientInterceptor,
-			grpc_retry.UnaryClientInterceptor(),
-			grpcutils.LogRequests,
+			grpcutils.SpanWrapUnaryClientInterceptor("grpc_opentracing", grpc_opentracing.UnaryClientInterceptor()),
+			grpcutils.SpanWrapUnaryClientInterceptor("grpc_prometheus", grpc_prometheus.UnaryClientInterceptor),
+			grpcutils.SpanWrapUnaryClientInterceptor("grpc_retry", grpc_retry.UnaryClientInterceptor()),
+			grpcutils.SpanWrapUnaryClientInterceptor("logrequests", grpcutils.LogRequests),
 		)),
 		grpc.WithChainStreamInterceptor(
 			grpcutils.LogStream,

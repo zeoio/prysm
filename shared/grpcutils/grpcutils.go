@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -78,4 +79,12 @@ func AppendHeaders(parent context.Context, headers []string) context.Context {
 		}
 	}
 	return parent
+}
+
+func SpanWrapUnaryClientInterceptor(name string, cb grpc.UnaryClientInterceptor) grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		ctx, span := trace.StartSpan(ctx, name)
+		defer span.End()
+		return cb(ctx, method, req, reply, cc, invoker, opts...)
+	}
 }
