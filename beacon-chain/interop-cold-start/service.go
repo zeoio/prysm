@@ -69,6 +69,8 @@ func NewService(ctx context.Context, cfg *Config) *Service {
 		}
 		// This is hard coded to my catalyst instance genesis hash.
 		eth1ParentHash := "0x3a3fdfc9ab6e17ff530b57bc21494da3848ebbeaf9343545fded7a18d221ffec"
+		// Use the below for Lighthouse's eth1 genesis.json.
+		//eth1ParentHash := "0x902a41997936cf3c54de02adb6ba88f537168baa8188586ec8cf92716dac6820"
 		genesisState.ApplicationBlockHash = common.HexToHash(eth1ParentHash).Bytes()
 		genesisTrie, err := stateV0.InitializeFromProto(genesisState)
 		if err != nil {

@@ -116,7 +116,10 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not get app payload %v", err)
 	}
-
+	payloadPb, err := helpers.AppPayloadProtobuf(payload)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not convert payload to protobuf %v", err)
+	}
 	blk := &ethpb.BeaconBlock{
 		Slot:          req.Slot,
 		ParentRoot:    parentRoot,
@@ -131,7 +134,7 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 			AttesterSlashings:  vs.SlashingsPool.PendingAttesterSlashings(ctx, head, false /*noLimit*/),
 			VoluntaryExits:     vs.ExitPool.PendingExits(head, req.Slot, false /*noLimit*/),
 			Graffiti:           graffiti[:],
-			ApplicationPayload: helpers.AppPayloadProtobuf(payload),
+			ApplicationPayload: payloadPb,
 		},
 	}
 

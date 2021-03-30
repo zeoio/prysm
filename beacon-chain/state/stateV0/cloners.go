@@ -289,8 +289,8 @@ func CopyApplicationPayload(payload *ethpb.ApplicationPayload) *ethpb.Applicatio
 // CopyTransactions copies the transactions.
 func CopyTransactions(txs []*ethpb.OpaqueTransaction) []*ethpb.OpaqueTransaction {
 	newTxs := make([]*ethpb.OpaqueTransaction, len(txs))
-	for i, tx := range newTxs {
-		newTxs[i] = &ethpb.OpaqueTransaction{Data: bytesutil.SafeCopyBytes(tx.Data)}
+	for i := range newTxs {
+		newTxs[i] = &ethpb.OpaqueTransaction{Data: bytesutil.SafeCopyBytes(txs[i].Data)}
 	}
 	return newTxs
 }

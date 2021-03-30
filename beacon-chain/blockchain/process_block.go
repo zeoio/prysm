@@ -417,12 +417,16 @@ func (s *Service) insertAppPayload(ctx context.Context, b *ethpb.BeaconBlock) er
 		return err
 	}
 	payload := b.Body.ApplicationPayload
+	payloadJson, err := helpers.AppPayloadJson(payload, parentState.ApplicationBlockHash())
+	if err != nil {
+		return err
+	}
 	ok, err := s.cfg.ApplicationExecutor.InsertApplicationData(ctx, eth.InsertBlockParams{
 		RandaoMix:              common.BytesToHash(randaoMix),
 		Slot:                   uint64(b.Slot),
 		Timestamp:              uint64(time.Now().Unix()),
 		RecentBeaconBlockRoots: []common.Hash{},
-		ApplicationPayload:     helpers.AppPayloadJson(payload, parentState.ApplicationBlockHash()),
+		ApplicationPayload:     payloadJson,
 	})
 	if err != nil {
 		return err
