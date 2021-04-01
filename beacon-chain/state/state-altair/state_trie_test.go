@@ -1,4 +1,4 @@
-package stateAltair_test
+package state_altair_test
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 
 	eth "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state/stateAltair"
+	stateAltair "github.com/prysmaticlabs/prysm/beacon-chain/state/state-altair"
 	pbp2p "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/params"

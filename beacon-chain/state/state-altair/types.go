@@ -1,17 +1,13 @@
-package stateAltair
+package state_altair
 
 import (
 	"sync"
 
 	"github.com/pkg/errors"
-	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stateutil"
 	pbp2p "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
 	"github.com/prysmaticlabs/prysm/shared/params"
 )
-
-// Ensure type BeaconState below implements BeaconState interface.
-var _ iface.BeaconStateAltair = (*BeaconState)(nil)
 
 func init() {
 	fieldMap = make(map[fieldIndex]dataType, params.BeaconConfig().BeaconStateFieldCount)
