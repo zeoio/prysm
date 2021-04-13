@@ -37,6 +37,7 @@ func (s *Service) ReceiveBlock(ctx context.Context, block *ethpb.SignedBeaconBlo
 	receivedTime := timeutils.Now()
 	blockCopy := stateV0.CopySignedBeaconBlock(block)
 
+	log.Info("on block")
 	// Apply state transition on the new block.
 	if err := s.onBlock(ctx, blockCopy, blockRoot); err != nil {
 		err := errors.Wrap(err, "could not process block")

@@ -83,7 +83,7 @@ var initialSyncBlockCacheSize = uint64(2 * params.BeaconConfig().SlotsPerEpoch)
 func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, blockRoot [32]byte) error {
 	ctx, span := trace.StartSpan(ctx, "blockChain.onBlock")
 	defer span.End()
-
+	t := time.Now()
 	if signed == nil || signed.Block == nil {
 		return errors.New("nil block")
 	}
@@ -93,11 +93,15 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 	if err != nil {
 		return err
 	}
+	log.Infof("t1: %s", time.Now().Sub(t).String())
+	t = time.Now()
 
 	set, postState, err := state.ExecuteStateTransitionNoVerifyAnySig(ctx, preState, signed)
 	if err != nil {
 		return errors.Wrap(err, "could not execute state transition")
 	}
+	log.Infof("t2: %s", time.Now().Sub(t).String())
+	t = time.Now()
 	valid, err := set.Verify()
 	if err != nil {
 		return errors.Wrap(err, "could not batch verify signature")
@@ -105,10 +109,14 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 	if !valid {
 		return errors.New("signature in block failed to verify")
 	}
+	log.Infof("t3: %s", time.Now().Sub(t).String())
+	t = time.Now()
 
 	if err := s.savePostStateInfo(ctx, blockRoot, signed, postState, false /* reg sync */); err != nil {
 		return err
 	}
+	log.Infof("t4: %s", time.Now().Sub(t).String())
+	t = time.Now()
 
 	// Updating next slot state cache can happen in the background. It shouldn't block rest of the process.
 	if featureconfig.Get().EnableNextSlotStateCache {
@@ -130,6 +138,8 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 			return err
 		}
 	}
+	log.Infof("t5: %s", time.Now().Sub(t).String())
+	t = time.Now()
 
 	newFinalized := postState.FinalizedCheckpointEpoch() > s.finalizedCheckpt.Epoch
 	if featureconfig.Get().UpdateHeadTimely {
@@ -162,14 +172,19 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 		if err := s.updateFinalized(ctx, postState.FinalizedCheckpoint()); err != nil {
 			return err
 		}
+		log.Infof("t6: %s", time.Now().Sub(t).String())
+		t = time.Now()
 		fRoot := bytesutil.ToBytes32(postState.FinalizedCheckpoint().Root)
 		if err := s.cfg.ForkChoiceStore.Prune(ctx, fRoot); err != nil {
 			return errors.Wrap(err, "could not prune proto array fork choice nodes")
 		}
+		log.Infof("t7: %s", time.Now().Sub(t).String())
+		t = time.Now()
 		if !featureconfig.Get().UpdateHeadTimely {
 			if err := s.finalizedImpliesNewJustified(ctx, postState); err != nil {
 				return errors.Wrap(err, "could not save new justified")
 			}
+			log.Infof("t8: %s", time.Now().Sub(t).String())
 		}
 		go func() {
 			// Use a custom deadline here, since this method runs asynchronously.
