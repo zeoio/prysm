@@ -92,7 +92,7 @@ func ExecuteStateTransition(
 
 	// Execute per block transition.
 
-	state, err = ProcessBlock(ctx, state, signed)
+	state, err = ProcessBlock(ctx, state, &interfaces.SignedBeaconBlockWrapper{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not process block in slot %d", signed.Block.Slot)
 	}
