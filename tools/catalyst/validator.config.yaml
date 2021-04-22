@@ -1,0 +1,4 @@
+wallet-dir:
+chain-config-file:
+force-clear-db: true
+wallet-password-file: password.txt
