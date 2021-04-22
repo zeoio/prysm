@@ -21,6 +21,10 @@ const (
 	// keys for Prysm eth2 validators. According to EIP-2334, the format is as follows:
 	// m / purpose / coin_type / account_index / withdrawal_key / validating_key
 	ValidatingKeyDerivationPathTemplate = "m/12381/3600/%d/0/0"
+	// WithdrawalKeyDerivationPathTemplate defining the hierarchical path for validating
+	// keys for Prysm eth2 validators. According to EIP-2334, the format is as follows:
+	// m / purpose / coin_type / account_index / withdrawal_key / validating_key
+	WithdrawalKeyDerivationPathTemplate = "m/12381/3600/%d/0"
 )
 
 // SetupConfig includes configuration values for initializing
