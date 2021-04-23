@@ -36,3 +36,8 @@ crash-*
 
 # deepsource cli
 bin
+
+tools/catalyst/beacon.config.yaml
+tools/catalyst/validator.config.yaml
+tools/catalyst/genesis.ssz
+tools/catalyst/wallet

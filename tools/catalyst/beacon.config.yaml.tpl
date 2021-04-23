@@ -3,5 +3,5 @@ force-clear-db: true
 min-sync-peers: 0
 http-web3provider: http://localhost:8545
 bootstrap-node:
-chain-config-file:
-genesis-state:
+chain-config-file: {{ .ChainConfigPath }}
+genesis-state: {{ .GenesisStatePath }}

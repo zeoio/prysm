@@ -59,7 +59,7 @@ BLS_WITHDRAWAL_PREFIX: 0x00
 
 # Time parameters
 # ---------------------------------------------------------------
-GENESIS_DELAY: 600
+GENESIS_DELAY: 120
 SECONDS_PER_SLOT: 6
 MIN_ATTESTATION_INCLUSION_DELAY: 1
 SLOTS_PER_EPOCH: 8

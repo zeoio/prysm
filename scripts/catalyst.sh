@@ -14,14 +14,12 @@ if [[ $1 == init ]]; then
     bazel run //tools/catalyst --define=ssz=minimal -- -base-path=$(pwd) -state-output=$(pwd)/tools/catalyst/genesis.ssz
 fi
 
-if [[ $1 == geth ]]; then
-    color "37" "Launching geth"
-fi
-
 if [[ $1 == beacon-chain ]]; then
     color "37" "Launching beacon-chain"
+    bazel run //beacon-chain --define=ssz=minimal -- --config-file=$(pwd)/tools/catalyst/beacon.config.yaml
 fi
 
 if [[ $1 == validator ]]; then
     color "37" "Launching validator"
+    bazel run //validator --define=ssz=minimal -- --config-file=$(pwd)/tools/catalyst/validator.config.yaml
 fi

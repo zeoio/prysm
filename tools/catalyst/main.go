@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core"
@@ -33,7 +34,7 @@ import (
 const (
 	mnemonic       = "lumber kind orange gold firm achieve tree robust peasant april very word ordinary before treat way ivory jazz cereal debate juice evil flame sadness"
 	validatorCount = 64
-	eth1Config     = "tools/catalyst/eth1_config.yaml"
+	eth1Config     = "tools/catalyst/eth1_config.json"
 	eth2Config     = "tools/catalyst/eth2_config.yaml"
 )
 
@@ -52,12 +53,12 @@ func main() {
 	flag.Parse()
 	base, err := fileutil.ExpandPath(*basePathFlag)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	genesisTime := uint64(time.Now().Unix())
 	eth1Genesis, err := loadEth1GenesisConf(filepath.Join(base, eth1Config))
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	eth1Genesis.Timestamp = genesisTime
 
@@ -67,7 +68,7 @@ func main() {
 
 	validators, privKeys, pubKeys, err := loadValidatorKeys()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	accounts := &accountStore{
 		PrivateKeys: privKeys,
@@ -75,16 +76,16 @@ func main() {
 	}
 	encodedStore, err := json.MarshalIndent(accounts, "", "\t")
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	encryptor := keystorev4.New()
 	id, err := uuid.NewRandom()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	cryptoFields, err := encryptor.Encrypt(encodedStore, "foobar")
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	ks := &imported.AccountsKeystoreRepresentation{
 		Crypto:  cryptoFields,
@@ -94,10 +95,22 @@ func main() {
 	}
 	encJSON, err := json.MarshalIndent(ks, "", "\t")
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-	if err := fileutil.WriteFile(filepath.Join(base, "tools", "catalyst", "wallet", "direct", "accounts", "all-accounts.keystore.json"), encJSON); err != nil {
-		panic(err)
+	validatorKeysPath := filepath.Join(
+		base,
+		"tools",
+		"catalyst",
+		"wallet",
+		"direct",
+		"accounts",
+		"all-accounts.keystore.json",
+	)
+	if !fileutil.FileExists(validatorKeysPath) {
+		log.Infof("Writing validator keys into wallet in %s", validatorKeysPath)
+		if err := fileutil.WriteFile(validatorKeysPath, encJSON); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	if uint64(len(validators)) < params.BeaconConfig().MinGenesisActiveValidatorCount {
@@ -112,10 +125,10 @@ func main() {
 
 	beaconState, err := state.EmptyGenesisState()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	if err := beaconState.SetValidators(validators); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	eth1Data := &ethpb.Eth1Data{
 		DepositRoot:  make([]byte, 32),
@@ -124,10 +137,10 @@ func main() {
 	}
 	beaconState, err = state.OptimizedGenesisBeaconState(genesisTime, beaconState, eth1Data)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	if err := beaconState.SetGenesisTime(genesisTime + params.BeaconConfig().GenesisDelay); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	if err := beaconState.SetLatestExecutionPayloadHeader(&pbp2p.ExecutionPayloadHeader{
 		BlockHash:        eth1BlockHash[:],
@@ -142,7 +155,7 @@ func main() {
 		LogsBloom:        eth1GenesisBlock.Bloom().Bytes(),
 		TransactionsRoot: make([]byte, 32),
 	}); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	t := beaconState.GenesisTime()
@@ -156,7 +169,7 @@ func main() {
 
 	f, err := os.OpenFile(*stateOutputFlag, os.O_CREATE|os.O_WRONLY, 0777)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
@@ -180,7 +193,11 @@ func main() {
 	if n != len(enc) {
 		panic("Not equal length")
 	}
-	log.Info("Done!")
+	log.Infof("Done writing genesis state to %s", *stateOutputFlag)
+
+	baseCatalyst := filepath.Join(base, "tools", "catalyst")
+	writeBeaconFlagConfig(baseCatalyst, baseCatalyst)
+	writeValidatorFlagConfig(baseCatalyst, baseCatalyst)
 }
 
 func loadEth1GenesisConf(configPath string) (*core.Genesis, error) {
@@ -237,4 +254,94 @@ func loadValidatorKeys() (validators []*ethpb.Validator, privKeys, pubKeys [][]b
 		pubKeys[i] = signingKey.PublicKey().Marshal()
 	}
 	return
+}
+
+func writeBeaconFlagConfig(basePath, outPath string) {
+	type templateParams struct {
+		ChainConfigPath  string
+		GenesisStatePath string
+	}
+
+	cfg := &templateParams{
+		ChainConfigPath:  filepath.Join(basePath, "eth2_config.yaml"),
+		GenesisStatePath: filepath.Join(basePath, "genesis.ssz"),
+	}
+	var templates *template.Template
+	var allFiles []string
+	files, err := ioutil.ReadDir(basePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, file := range files {
+		filename := file.Name()
+		fullPath := filepath.Join(basePath, filename)
+		if strings.HasSuffix(filename, ".tpl") {
+			allFiles = append(allFiles, fullPath)
+		}
+	}
+	templates, err = template.ParseFiles(allFiles...)
+	if err != nil {
+		log.Fatal(err)
+	}
+	beaconTemplate := templates.Lookup("beacon.config.yaml.tpl")
+	// Create the file:
+	f, err := os.Create(filepath.Join(outPath, "beacon.config.yaml"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+	if err := beaconTemplate.Execute(f, cfg); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func writeValidatorFlagConfig(basePath, outPath string) {
+	type templateParams struct {
+		ChainConfigPath    string
+		WalletPasswordPath string
+		WalletDirPath      string
+	}
+
+	cfg := &templateParams{
+		ChainConfigPath:    filepath.Join(basePath, "eth2_config.yaml"),
+		WalletPasswordPath: filepath.Join(basePath, "wallet_password.txt"),
+		WalletDirPath:      filepath.Join(basePath, "wallet"),
+	}
+	var templates *template.Template
+	var allFiles []string
+	files, err := ioutil.ReadDir(basePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, file := range files {
+		filename := file.Name()
+		fullPath := filepath.Join(basePath, filename)
+		if strings.HasSuffix(filename, ".tpl") {
+			allFiles = append(allFiles, fullPath)
+		}
+	}
+	templates, err = template.ParseFiles(allFiles...)
+	if err != nil {
+		log.Fatal(err)
+	}
+	validatorTemplate := templates.Lookup("validator.config.yaml.tpl")
+	// Create the file:
+	f, err := os.Create(filepath.Join(outPath, "validator.config.yaml"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+	if err := validatorTemplate.Execute(f, cfg); err != nil {
+		log.Fatal(err)
+	}
 }
