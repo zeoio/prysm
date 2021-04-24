@@ -19,6 +19,7 @@ import (
 	testDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
 	mockPOW "github.com/prysmaticlabs/prysm/beacon-chain/powchain/testing"
 	contracts "github.com/prysmaticlabs/prysm/contracts/deposit-contract"
+	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
@@ -68,6 +69,45 @@ func TestBuildUpFromRealisticDeposits(t *testing.T) {
 	logs, err := testAcc.Backend.FilterLogs(ctx, query)
 	require.NoError(t, err, "Unable to retrieve logs")
 	require.Equal(t, depositsWanted, len(logs), "Did not receive enough logs")
+
+	depositCache, err := depositcache.New()
+	require.NoError(t, err)
+	for _, log := range logs {
+		pubkey, withdrawalCredentials, amount, signature, merkleTreeIndex, err := contracts.UnpackDepositLogData(log.Data)
+		require.NoError(t, err)
+
+		index := int64(binary.LittleEndian.Uint64(merkleTreeIndex))
+
+		// We then decode the deposit input in order to create a deposit object
+		// we can store in our persistent DB.
+		depositData := &ethpb.Deposit_Data{
+			Amount:                bytesutil.FromBytes8(amount),
+			PublicKey:             pubkey,
+			Signature:             signature,
+			WithdrawalCredentials: withdrawalCredentials,
+		}
+
+		depositHash, err := depositData.HashTreeRoot()
+		require.NoError(t, err)
+
+		trie.Insert(depositHash[:], int(index))
+
+		proof, err := trie.MerkleProof(int(index))
+		require.NoError(t, err)
+
+		deposit := &ethpb.Deposit{
+			Data:  depositData,
+			Proof: proof,
+		}
+
+		// We always store all historical deposits in the DB.
+		depositCache.InsertDeposit(ctx, deposit, log.BlockNumber, index, trie.Root())
+	}
+
+	// Check through the deposit cache and the trie?
+	for _, cntr := range depositCache.AllDepositContainers(ctx) {
+		t.Logf("Deposit index %d, root %#x", cntr.Index, cntr.DepositRoot)
+	}
 }
 
 func TestProcessDepositLog_OK(t *testing.T) {
