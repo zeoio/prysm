@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/cache/depositcache"
@@ -25,6 +26,49 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/trieutil"
 	logTest "github.com/sirupsen/logrus/hooks/test"
 )
+
+func TestBuildUpFromRealisticDeposits(t *testing.T) {
+	ctx := context.Background()
+	trie, err := trieutil.NewTrie(params.BeaconConfig().DepositContractTreeDepth)
+	require.NoError(t, err)
+	testAcc, err := contracts.Setup()
+	require.NoError(t, err)
+
+	depRoot, err := testAcc.Contract.GetDepositRoot(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.DeepEqual(t, depRoot, trie.HashTreeRoot())
+
+	//depositContractCaller, err := contracts.NewDepositContractCaller(testAcc.ContractAddr, testAcc.Backend)
+	//require.NoError(t, err)
+	testAcc.Backend.Commit()
+	require.NoError(t, testAcc.Backend.AdjustTime(time.Duration(int64(time.Now().Nanosecond()))))
+
+	depositsWanted := 64
+	testutil.ResetCache()
+	deposits, _, err := testutil.DeterministicDepositsAndKeys(uint64(depositsWanted))
+	require.NoError(t, err)
+	_, depositRoots, err := testutil.DeterministicDepositTrie(len(deposits))
+	require.NoError(t, err)
+
+	for i := 0; i < depositsWanted; i++ {
+		data := deposits[i].Data
+		testAcc.TxOpts.Value = contracts.Amount32Eth()
+		testAcc.TxOpts.GasLimit = 1000000
+		_, err = testAcc.Contract.Deposit(testAcc.TxOpts, data.PublicKey, data.WithdrawalCredentials, data.Signature, depositRoots[i])
+		require.NoError(t, err, "Could not deposit to deposit contract")
+		testAcc.Backend.Commit()
+	}
+
+	query := ethereum.FilterQuery{
+		Addresses: []common.Address{
+			testAcc.ContractAddr,
+		},
+	}
+
+	logs, err := testAcc.Backend.FilterLogs(ctx, query)
+	require.NoError(t, err, "Unable to retrieve logs")
+	require.Equal(t, depositsWanted, len(logs), "Did not receive enough logs")
+}
 
 func TestProcessDepositLog_OK(t *testing.T) {
 	hook := logTest.NewGlobal()
