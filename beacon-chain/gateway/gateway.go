@@ -11,6 +11,7 @@ import (
 
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/pkg/errors"
+	ethpbv1 "github.com/prysmaticlabs/ethereumapis/eth/v1"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	pbrpc "github.com/prysmaticlabs/prysm/proto/beacon/rpc/v1"
 	"github.com/prysmaticlabs/prysm/shared"
@@ -69,14 +70,37 @@ func (g *Gateway) Start() {
 			},
 		}),
 	)
+
+	gwmuxV1 := gwruntime.NewServeMux(
+		gwruntime.SetQueryParameterParser(
+			&defaultQueryParser{},
+		),
+		gwruntime.WithMarshalerOption(gwruntime.MIMEWildcard, &gwruntime.HTTPBodyMarshaler{
+			Marshaler: &JSONPbHex{
+				MarshalOptions: protojson.MarshalOptions{
+					UseProtoNames:   true,
+					EmitUnpopulated: true,
+				},
+				UnmarshalOptions: protojson.UnmarshalOptions{
+					DiscardUnknown: true,
+				},
+			},
+		}),
+	)
 	handlers := []func(context.Context, *gwruntime.ServeMux, *grpc.ClientConn) error{
 		ethpb.RegisterNodeHandler,
 		ethpb.RegisterBeaconChainHandler,
 		ethpb.RegisterBeaconNodeValidatorHandler,
 		pbrpc.RegisterHealthHandler,
 	}
+	handlersV1 := []func(context.Context, *gwruntime.ServeMux, *grpc.ClientConn) error{
+		ethpbv1.RegisterBeaconNodeHandler,
+		ethpbv1.RegisterBeaconChainHandler,
+		ethpbv1.RegisterBeaconValidatorHandler,
+	}
 	if g.enableDebugRPCEndpoints {
 		handlers = append(handlers, pbrpc.RegisterDebugHandler)
+		handlersV1 = append(handlersV1, ethpbv1.RegisterBeaconDebugHandler)
 	}
 	for _, f := range handlers {
 		if err := f(ctx, gwmux, conn); err != nil {
@@ -85,8 +109,16 @@ func (g *Gateway) Start() {
 			return
 		}
 	}
+	for _, f := range handlersV1 {
+		if err := f(ctx, gwmuxV1, conn); err != nil {
+			log.WithError(err).Error("Failed to start gateway")
+			g.startFailure = err
+			return
+		}
+	}
 
-	g.mux.Handle("/", gwmux)
+	g.mux.Handle("/eth/v1alpha1/", gwmux)
+	g.mux.Handle("/eth/v1/", gwmuxV1)
 
 	g.server = &http.Server{
 		Addr:    g.gatewayAddr,

@@ -7,7 +7,6 @@ import (
 	"math/bits"
 	"regexp"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	types "github.com/prysmaticlabs/eth2-types"
 )
 
@@ -339,5 +338,5 @@ func IsBytes32Hex(b []byte) (bool, error) {
 	if b == nil {
 		return false, nil
 	}
-	return regexp.Match("^0x[0-9a-fA-F]{64}$", []byte(hexutil.Encode(b)))
+	return regexp.Match("^0x[0-9a-fA-F]{64}$", b)
 }

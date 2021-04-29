@@ -3,9 +3,9 @@ package beaconv1
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
@@ -59,6 +59,9 @@ func (bs *Server) GetStateRoot(ctx context.Context, req *ethpb.StateRequest) (*e
 		err  error
 	)
 
+	fmt.Printf("%s\n", req.StateId)
+	fmt.Printf("%#x\n", req.StateId)
+	fmt.Printf("%v\n", req.StateId)
 	root, err = bs.stateRoot(ctx, req.StateId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not get state root: %v", err)
@@ -127,7 +130,12 @@ func (bs *Server) stateRoot(ctx context.Context, stateId []byte) ([]byte, error)
 		err  error
 	)
 
-	stateIdString := strings.ToLower(string(stateId))
+	decodedHex, err := hex.DecodeString(fmt.Sprintf("%#x", stateId)[2:])
+	if err != nil {
+		return nil, err
+	}
+	stateIdString := string(decodedHex)
+	fmt.Println(stateIdString)
 	switch stateIdString {
 	case "head":
 		root, err = bs.headStateRoot(ctx)
