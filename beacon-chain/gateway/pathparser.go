@@ -23,7 +23,7 @@ import (
 
 var valuesKeyRegexp = regexp.MustCompile(`^(.*)\[(.*)\]$`)
 
-var currentQueryParser QueryParameterParser = &defaultQueryParser{}
+var currentQueryParser QueryParameterParser = &hexQueryParser{}
 
 // QueryParameterParser defines interface for all query parameter parsers
 type QueryParameterParser interface {
@@ -36,11 +36,11 @@ func PopulateQueryParameters(msg proto.Message, values url.Values, filter *utili
 	return currentQueryParser.Parse(msg, values, filter)
 }
 
-type defaultQueryParser struct{}
+type hexQueryParser struct{}
 
 // Parse populates "values" into "msg".
 // A value is ignored if its key starts with one of the elements in "filter".
-func (*defaultQueryParser) Parse(msg proto.Message, values url.Values, filter *utilities.DoubleArray) error {
+func (*hexQueryParser) Parse(msg proto.Message, values url.Values, filter *utilities.DoubleArray) error {
 	fmt.Println("parsing")
 	for key, values := range values {
 		match := valuesKeyRegexp.FindStringSubmatch(key)

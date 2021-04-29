@@ -73,7 +73,7 @@ func (g *Gateway) Start() {
 
 	gwmuxV1 := gwruntime.NewServeMux(
 		gwruntime.SetQueryParameterParser(
-			&defaultQueryParser{},
+			currentQueryParser,
 		),
 		gwruntime.WithMarshalerOption(gwruntime.MIMEWildcard, &gwruntime.HTTPBodyMarshaler{
 			Marshaler: &JSONPbHex{
