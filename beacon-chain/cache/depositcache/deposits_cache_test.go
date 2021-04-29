@@ -217,6 +217,22 @@ func TestDepositsNumberAndRootAtHeight(t *testing.T) {
 		assert.Equal(t, 1, int(n))
 		require.DeepEqual(t, wantedRoot, root[:])
 	})
+	t.Run("nothing_found", func(t *testing.T) {
+		dc, err := New()
+		require.NoError(t, err)
+
+		dc.deposits = []*dbpb.DepositContainer{
+			{
+				Eth1BlockHeight: 10,
+				Index:           0,
+				Deposit:         &ethpb.Deposit{},
+				DepositRoot:     wantedRoot,
+			},
+		}
+		n, root := dc.DepositsNumberAndRootAtHeight(context.Background(), big.NewInt(9))
+		assert.Equal(t, 0, int(n))
+		require.DeepEqual(t, [32]byte{}, root)
+	})
 	t.Run("none_at_height_some_below", func(t *testing.T) {
 		dc, err := New()
 		require.NoError(t, err)
