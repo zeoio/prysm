@@ -34,6 +34,9 @@ func RunSSZStaticTests(t *testing.T, config string) {
 
 		for _, innerFolder := range innerTestFolders {
 			t.Run(path.Join(folder.Name(), innerFolder.Name()), func(t *testing.T) {
+				if folder.Name() != "BeaconState" {
+					t.Skip()
+				}
 				serializedBytes, err := testutil.BazelFileBytes(innerTestsFolderPath, innerFolder.Name(), "serialized.ssz_snappy")
 				require.NoError(t, err)
 				serializedSSZ, err := snappy.Decode(nil /* dst */, serializedBytes)
