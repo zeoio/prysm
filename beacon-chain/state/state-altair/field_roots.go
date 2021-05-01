@@ -204,14 +204,14 @@ func (h *stateRootHasher) computeFieldRootsWithHasher(state *pb.BeaconStateAltai
 	fieldRoots[21] = inactivityScoresRoot[:]
 
 	// Current sync committee root.
-	currentSyncCommitteeRoot, err := syncCommitteeRoot(state.CurrentSyncCommittee)
+	currentSyncCommitteeRoot, err := SyncCommitteeRoot(state.CurrentSyncCommittee)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute sync committee merkleization")
 	}
 	fieldRoots[22] = currentSyncCommitteeRoot[:]
 
 	// Next sync committee root.
-	nextSyncCommitteeRoot, err := syncCommitteeRoot(state.NextSyncCommittee)
+	nextSyncCommitteeRoot, err := SyncCommitteeRoot(state.NextSyncCommittee)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute sync committee merkleization")
 	}

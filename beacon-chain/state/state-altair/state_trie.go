@@ -322,9 +322,9 @@ func (b *BeaconState) rootSelector(field fieldIndex) ([32]byte, error) {
 	case inactivityScores:
 		return stateutil.Uint64ListRootWithRegistryLimit(b.state.InactivityScores)
 	case currentSyncCommittee:
-		return syncCommitteeRoot(b.state.CurrentSyncCommittee)
+		return SyncCommitteeRoot(b.state.CurrentSyncCommittee)
 	case nextSyncCommittee:
-		return syncCommitteeRoot(b.state.NextSyncCommittee)
+		return SyncCommitteeRoot(b.state.NextSyncCommittee)
 	}
 	return [32]byte{}, errors.New("invalid field index provided")
 }

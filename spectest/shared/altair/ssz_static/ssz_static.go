@@ -34,9 +34,6 @@ func RunSSZStaticTests(t *testing.T, config string) {
 
 		for _, innerFolder := range innerTestFolders {
 			t.Run(path.Join(folder.Name(), innerFolder.Name()), func(t *testing.T) {
-				if folder.Name() != "BeaconState" {
-					t.Skip()
-				}
 				serializedBytes, err := testutil.BazelFileBytes(innerTestsFolderPath, innerFolder.Name(), "serialized.ssz_snappy")
 				require.NoError(t, err)
 				serializedSSZ, err := snappy.Decode(nil /* dst */, serializedBytes)
@@ -63,6 +60,12 @@ func RunSSZStaticTests(t *testing.T, config string) {
 						if !ok {
 							return [32]byte{}, errors.New("could not get hash root, not compatible object")
 						}
+
+						sc, ok := s.(*pb.SyncCommittee)
+						if ok {
+							return stateAltair.SyncCommitteeRoot(sc)
+						}
+
 						return sszObj.HashTreeRoot()
 					}
 				}
@@ -152,7 +155,25 @@ func UnmarshalledSSZ(t *testing.T, serializedBytes []byte, folderName string) (i
 		obj = &ethpb.Validator{}
 	case "VoluntaryExit":
 		obj = &ethpb.VoluntaryExit{}
+	case "SyncCommittee":
+		obj = &pb.SyncCommittee{}
+	case "SyncAggregate":
+		obj = &ethpb.SyncAggregate{}
 	case "ContributionAndProof":
+		t.Skip("Unused type")
+	case "LightClientSnapshot":
+		t.Skip("Unused type")
+	case "LightClientStore":
+		t.Skip("Unused type")
+	case "LightClientUpdate":
+		t.Skip("Unused type")
+	case "SignedContributionAndProof":
+		t.Skip("Unused type")
+	case "SyncCommitteeContribution":
+		t.Skip("Unused type")
+	case "SyncCommitteeSignature":
+		t.Skip("Unused type")
+	case "SyncCommitteeSigningData":
 		t.Skip("Unused type")
 		return nil, nil
 	default:
