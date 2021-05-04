@@ -3,6 +3,7 @@ package ethereum.beacon.p2p.v1;
 
 import "eth/v1alpha1/attestation.proto";
 import "eth/v1alpha1/beacon_block.proto";
+import "eth/v1alpha1/shard.proto";
 import "eth/v1alpha1/validator.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
@@ -47,6 +48,12 @@ message BeaconState {
 
   // [New in merge]
   ExecutionPayloadHeader latest_execution_payload_header = 9001;
+
+  repeated PendingShardHeader previous_epoch_pending_shard_headers = 10001 [(gogoproto.moretags) = "ssz-max:\"131072\""];
+  repeated PendingShardHeader current_epoch_pending_shard_headers = 10002 [(gogoproto.moretags) = "ssz-max:\"131072\""];
+  repeated EpochDataCommitments grandparent_epoch_confirmed_commitments = 10003 [(gogoproto.moretags) = "ssz-size:\"1024\""];
+  uint64 shard_gas_price = 10004;
+  uint64 current_epoch_start_shard = 10005;
 }
 
 message Fork {
@@ -137,3 +144,20 @@ message ExecutionPayloadHeader {
   bytes transactions_root = 11 [(gogoproto.moretags) = "ssz-size:\"32\""];
 }
 
+message PendingShardHeader {
+  // Slot and shard that this header is intended for.
+  uint64 slot = 1;
+  uint64 shard = 2;
+  // KGZ10 commitment to the data.
+  ethereum.eth.v1alpha1.DataCommitment data_commitment = 3;
+  // Hash tree root of the shard header to be verified by attestations.
+  bytes root = 4 [(gogoproto.moretags) = "ssz-size:\"32\""];
+  // Validators that voted for the header.
+  bytes votes = 5 [(gogoproto.moretags) = "ssz-max:\"2048\"", (gogoproto.casttype) = "github.com/prysmaticlabs/go-bitfield.Bitlist"];
+  // Status whether header has been confirmed.
+  bool confirmed = 6;
+}
+
+message EpochDataCommitments {
+  repeated ethereum.eth.v1alpha1.DataCommitment data_commitments = 1  [(gogoproto.moretags) = "ssz-size:\"32\""];
+}
