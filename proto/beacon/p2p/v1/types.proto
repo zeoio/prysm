@@ -51,7 +51,7 @@ message BeaconState {
 
   repeated PendingShardHeader previous_epoch_pending_shard_headers = 10001 [(gogoproto.moretags) = "ssz-max:\"131072\""];
   repeated PendingShardHeader current_epoch_pending_shard_headers = 10002 [(gogoproto.moretags) = "ssz-max:\"131072\""];
-  repeated EpochDataCommitments grandparent_epoch_confirmed_commitments = 10003 [(gogoproto.moretags) = "ssz-size:\"1024\""];
+  repeated EpochDataCommitments grandparent_epoch_confirmed_commitments = 10003 [(gogoproto.moretags) = "ssz-max:\"1024\""];
   uint64 shard_gas_price = 10004;
   uint64 current_epoch_start_shard = 10005;
 }
@@ -159,5 +159,5 @@ message PendingShardHeader {
 }
 
 message EpochDataCommitments {
-  repeated ethereum.eth.v1alpha1.DataCommitment data_commitments = 1  [(gogoproto.moretags) = "ssz-size:\"32\""];
+  repeated ethereum.eth.v1alpha1.DataCommitment data_commitments = 1  [(gogoproto.moretags) = "ssz-max:\"32\""];
 }

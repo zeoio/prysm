@@ -541,7 +541,10 @@ func (b *BeaconState) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 
 	// Offset (24) 'GrandparentEpochConfirmedCommitments'
 	dst = ssz.WriteOffset(dst, offset)
-	offset += len(b.GrandparentEpochConfirmedCommitments) * 1792
+	for ii := 0; ii < len(b.GrandparentEpochConfirmedCommitments); ii++ {
+		offset += 4
+		offset += b.GrandparentEpochConfirmedCommitments[ii].SizeSSZ()
+	}
 
 	// Field (25) 'ShardGasPrice'
 	dst = ssz.MarshalUint64(dst, b.ShardGasPrice)
@@ -669,6 +672,13 @@ func (b *BeaconState) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	if len(b.GrandparentEpochConfirmedCommitments) > 1024 {
 		err = ssz.ErrListTooBig
 		return
+	}
+	{
+		offset = 4 * len(b.GrandparentEpochConfirmedCommitments)
+		for ii := 0; ii < len(b.GrandparentEpochConfirmedCommitments); ii++ {
+			dst = ssz.WriteOffset(dst, offset)
+			offset += b.GrandparentEpochConfirmedCommitments[ii].SizeSSZ()
+		}
 	}
 	for ii := 0; ii < len(b.GrandparentEpochConfirmedCommitments); ii++ {
 		if dst, err = b.GrandparentEpochConfirmedCommitments[ii].MarshalSSZTo(dst); err != nil {
@@ -1007,18 +1017,22 @@ func (b *BeaconState) UnmarshalSSZ(buf []byte) error {
 	// Field (24) 'GrandparentEpochConfirmedCommitments'
 	{
 		buf = tail[o24:]
-		num, err := ssz.DivideInt2(len(buf), 1792, 1024)
+		num, err := ssz.DecodeDynamicLength(buf, 1024)
 		if err != nil {
 			return err
 		}
 		b.GrandparentEpochConfirmedCommitments = make([]*EpochDataCommitments, num)
-		for ii := 0; ii < num; ii++ {
-			if b.GrandparentEpochConfirmedCommitments[ii] == nil {
-				b.GrandparentEpochConfirmedCommitments[ii] = new(EpochDataCommitments)
+		err = ssz.UnmarshalDynamic(buf, num, func(indx int, buf []byte) (err error) {
+			if b.GrandparentEpochConfirmedCommitments[indx] == nil {
+				b.GrandparentEpochConfirmedCommitments[indx] = new(EpochDataCommitments)
 			}
-			if err = b.GrandparentEpochConfirmedCommitments[ii].UnmarshalSSZ(buf[ii*1792 : (ii+1)*1792]); err != nil {
+			if err = b.GrandparentEpochConfirmedCommitments[indx].UnmarshalSSZ(buf); err != nil {
 				return err
 			}
+			return nil
+		})
+		if err != nil {
+			return err
 		}
 	}
 	return err
@@ -1065,7 +1079,10 @@ func (b *BeaconState) SizeSSZ() (size int) {
 	}
 
 	// Field (24) 'GrandparentEpochConfirmedCommitments'
-	size += len(b.GrandparentEpochConfirmedCommitments) * 1792
+	for ii := 0; ii < len(b.GrandparentEpochConfirmedCommitments); ii++ {
+		size += 4
+		size += b.GrandparentEpochConfirmedCommitments[ii].SizeSSZ()
+	}
 
 	return
 }
@@ -2323,13 +2340,18 @@ func (e *EpochDataCommitments) MarshalSSZ() ([]byte, error) {
 // MarshalSSZTo ssz marshals the EpochDataCommitments object to a target array
 func (e *EpochDataCommitments) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	dst = buf
+	offset := int(4)
+
+	// Offset (0) 'DataCommitments'
+	dst = ssz.WriteOffset(dst, offset)
+	offset += len(e.DataCommitments) * 56
 
 	// Field (0) 'DataCommitments'
-	if len(e.DataCommitments) != 32 {
-		err = ssz.ErrVectorLength
+	if len(e.DataCommitments) > 32 {
+		err = ssz.ErrListTooBig
 		return
 	}
-	for ii := 0; ii < 32; ii++ {
+	for ii := 0; ii < len(e.DataCommitments); ii++ {
 		if dst, err = e.DataCommitments[ii].MarshalSSZTo(dst); err != nil {
 			return
 		}
@@ -2342,27 +2364,45 @@ func (e *EpochDataCommitments) MarshalSSZTo(buf []byte) (dst []byte, err error) 
 func (e *EpochDataCommitments) UnmarshalSSZ(buf []byte) error {
 	var err error
 	size := uint64(len(buf))
-	if size != 1792 {
+	if size < 4 {
 		return ssz.ErrSize
 	}
 
-	// Field (0) 'DataCommitments'
-	e.DataCommitments = make([]*v1alpha1.DataCommitment, 32)
-	for ii := 0; ii < 32; ii++ {
-		if e.DataCommitments[ii] == nil {
-			e.DataCommitments[ii] = new(v1alpha1.DataCommitment)
-		}
-		if err = e.DataCommitments[ii].UnmarshalSSZ(buf[0:1792][ii*56 : (ii+1)*56]); err != nil {
-			return err
-		}
+	tail := buf
+	var o0 uint64
+
+	// Offset (0) 'DataCommitments'
+	if o0 = ssz.ReadOffset(buf[0:4]); o0 > size {
+		return ssz.ErrOffset
 	}
 
+	// Field (0) 'DataCommitments'
+	{
+		buf = tail[o0:]
+		num, err := ssz.DivideInt2(len(buf), 56, 32)
+		if err != nil {
+			return err
+		}
+		e.DataCommitments = make([]*v1alpha1.DataCommitment, num)
+		for ii := 0; ii < num; ii++ {
+			if e.DataCommitments[ii] == nil {
+				e.DataCommitments[ii] = new(v1alpha1.DataCommitment)
+			}
+			if err = e.DataCommitments[ii].UnmarshalSSZ(buf[ii*56 : (ii+1)*56]); err != nil {
+				return err
+			}
+		}
+	}
 	return err
 }
 
 // SizeSSZ returns the ssz encoded size in bytes for the EpochDataCommitments object
 func (e *EpochDataCommitments) SizeSSZ() (size int) {
-	size = 1792
+	size = 4
+
+	// Field (0) 'DataCommitments'
+	size += len(e.DataCommitments) * 56
+
 	return
 }
 
@@ -2377,15 +2417,18 @@ func (e *EpochDataCommitments) HashTreeRootWith(hh *ssz.Hasher) (err error) {
 
 	// Field (0) 'DataCommitments'
 	{
-		if len(e.DataCommitments) != 32 {
-			err = ssz.ErrVectorLength
+		subIndx := hh.Index()
+		num := uint64(len(e.DataCommitments))
+		if num > 32 {
+			err = ssz.ErrIncorrectListSize
 			return
 		}
-		subIndx := hh.Index()
-		for _, i := range e.DataCommitments {
-			hh.AppendUint64(i)
+		for i := uint64(0); i < num; i++ {
+			if err = e.DataCommitments[i].HashTreeRootWith(hh); err != nil {
+				return
+			}
 		}
-		hh.Merkleize(subIndx)
+		hh.MerkleizeWithMixin(subIndx, num, 32)
 	}
 
 	hh.Merkleize(indx)
