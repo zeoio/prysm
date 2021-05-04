@@ -3,7 +3,6 @@ package beaconv1
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"fmt"
 	"strconv"
 
@@ -130,11 +129,8 @@ func (bs *Server) stateRoot(ctx context.Context, stateId []byte) ([]byte, error)
 		err  error
 	)
 
-	decodedHex, err := hex.DecodeString(fmt.Sprintf("%#x", stateId)[2:])
-	if err != nil {
-		return nil, err
-	}
-	stateIdString := string(decodedHex)
+	fmt.Printf("Stateroot: %#x\n", stateId)
+	stateIdString := string(stateId)
 	fmt.Println(stateIdString)
 	switch stateIdString {
 	case "head":
@@ -146,11 +142,11 @@ func (bs *Server) stateRoot(ctx context.Context, stateId []byte) ([]byte, error)
 	case "justified":
 		root, err = bs.justifiedStateRoot(ctx)
 	default:
-		ok, matchErr := bytesutil.IsBytes32Hex(stateId)
-		if matchErr != nil {
-			return nil, errors.Wrap(err, "could not parse ID")
-		}
-		if ok {
+		//ok, matchErr := bytesutil.IsBytes32Hex(stateId)
+		//if matchErr != nil {
+		//	return nil, errors.Wrap(err, "could not parse ID")
+		//}
+		if len(stateId) == 32 {
 			root, err = bs.stateRootByHex(ctx, stateId)
 		} else {
 			slotNumber, parseErr := strconv.ParseUint(stateIdString, 10, 64)

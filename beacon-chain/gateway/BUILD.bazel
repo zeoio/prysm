@@ -10,6 +10,7 @@ go_library(
         "log.go",
         "jsonpbhex.go",
         "pathparser.go",
+        "path.go",
     ],
     importpath = "github.com/prysmaticlabs/prysm/beacon-chain/gateway",
     visibility = [

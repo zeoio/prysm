@@ -1153,8 +1153,8 @@ def prysm_deps():
         name = "com_github_grpc_ecosystem_grpc_gateway_v2",
         importpath = "github.com/grpc-ecosystem/grpc-gateway/v2",
         replace = "github.com/prysmaticlabs/grpc-gateway/v2",
-        sum = "h1:p8RXjbUOOEGWnleirv5ctE/KBQe0BY/ME2iea1sD0RY=",
-        version = "v2.3.1-0.20210429070457-714fa3339bc9",
+        sum = "h1:N1YdkePzlg6EgE8k1nlSNdCfJsOeyBfkGksgEiw10As=",
+        version = "v2.3.1-0.20210429225654-e5c0a25b9338",
     )
     go_repository(
         name = "com_github_gxed_hashland_keccakpg",
@@ -2629,8 +2629,8 @@ def prysm_deps():
         name = "com_github_prysmaticlabs_ethereumapis",
         build_file_generation = "off",
         importpath = "github.com/prysmaticlabs/ethereumapis",
-        sum = "h1:27uz2P8dF2QtxOvmPyXdfi36DlRdp5UJ0ik6nUkgoPI=",
-        version = "v0.0.0-20210429161052-5b3fa960e925",
+        sum = "h1:hikMG1jToy3vs55QqREEWDQRHqu4d1UTSnhRZZ7IoOw=",
+        version = "v0.0.0-20210429225912-6cf0a6b5b146",
     )
     go_repository(
         name = "com_github_prysmaticlabs_go_bitfield",

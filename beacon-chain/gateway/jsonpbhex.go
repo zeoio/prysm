@@ -33,8 +33,8 @@ func (*JSONPbHex) ContentType(_ interface{}) string {
 
 // Marshal marshals "v" into JSON.
 func (j *JSONPbHex) Marshal(v interface{}) ([]byte, error) {
-	fmt.Println("Being used marshal")
-	fmt.Println(v)
+	//fmt.Println("Being used marshal")
+	//fmt.Println(v)
 	jsonPb := &gwruntime.JSONPb{
 		MarshalOptions:   j.MarshalOptions,
 		UnmarshalOptions: j.UnmarshalOptions,
@@ -44,8 +44,8 @@ func (j *JSONPbHex) Marshal(v interface{}) ([]byte, error) {
 		return nil, err
 	}
 
-	fmt.Println("marshaled")
-	fmt.Println(string(marshaledBytes))
+	//fmt.Println("marshaled")
+	//fmt.Println(string(marshaledBytes))
 	r, err := j.convertJsonBytesBase64(marshaledBytes)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func (j *JSONPbHex) convertJsonBytesBase64(marshaledBytes []byte) ([]byte, error
 		return nil, err
 	}
 	convertBase64(newV)
-	fmt.Println("converted")
+	//fmt.Println("converted")
 	r, err := json.Marshal(newV)
 	if err != nil {
 		return nil, err
@@ -161,6 +161,8 @@ func decodeJSONPb(d *json.Decoder, unmarshaler protojson.UnmarshalOptions, v int
 		return err
 	}
 
+	fmt.Println("penis")
+	fmt.Println(&b)
 	var newV interface{}
 	if err := json.Unmarshal(b, &newV); err != nil {
 		return err

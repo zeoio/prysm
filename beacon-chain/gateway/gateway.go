@@ -72,9 +72,8 @@ func (g *Gateway) Start() {
 	)
 
 	gwmuxV1 := gwruntime.NewServeMux(
-		gwruntime.SetQueryParameterParser(
-			currentQueryParser,
-		),
+		gwruntime.SetQueryParameterParser(currentQueryParser),
+		gwruntime.SetPathParameterParser(currentPathParser),
 		gwruntime.WithMarshalerOption(gwruntime.MIMEWildcard, &gwruntime.HTTPBodyMarshaler{
 			Marshaler: &JSONPbHex{
 				MarshalOptions: protojson.MarshalOptions{

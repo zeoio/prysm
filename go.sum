@@ -1068,6 +1068,14 @@ github.com/prysmaticlabs/ethereumapis v0.0.0-20210429071740-816517af2c5f h1:itc4
 github.com/prysmaticlabs/ethereumapis v0.0.0-20210429071740-816517af2c5f/go.mod h1:a0kvrMazsvz/yGbrGIdx/Xtm5rhf/bfELx81A9pbuG0=
 github.com/prysmaticlabs/ethereumapis v0.0.0-20210429161052-5b3fa960e925 h1:27uz2P8dF2QtxOvmPyXdfi36DlRdp5UJ0ik6nUkgoPI=
 github.com/prysmaticlabs/ethereumapis v0.0.0-20210429161052-5b3fa960e925/go.mod h1:a0kvrMazsvz/yGbrGIdx/Xtm5rhf/bfELx81A9pbuG0=
+github.com/prysmaticlabs/ethereumapis v0.0.0-20210429170310-ce8b3b3395bb h1:v3DiCD3BHv6dCZDkU9iB0hhUZA3Sn7R4k/5We5K7BIY=
+github.com/prysmaticlabs/ethereumapis v0.0.0-20210429170310-ce8b3b3395bb/go.mod h1:a0kvrMazsvz/yGbrGIdx/Xtm5rhf/bfELx81A9pbuG0=
+github.com/prysmaticlabs/ethereumapis v0.0.0-20210429173457-7d07c15d9578 h1:SK9zuNRev/cuZP0/8WnCQALk1Zw5koPQ4tlSyBiBl8g=
+github.com/prysmaticlabs/ethereumapis v0.0.0-20210429173457-7d07c15d9578/go.mod h1:a0kvrMazsvz/yGbrGIdx/Xtm5rhf/bfELx81A9pbuG0=
+github.com/prysmaticlabs/ethereumapis v0.0.0-20210429200037-7874067c6b26 h1:jzUVonT4zHDu+o0fY/b42+0GawS3E9Wt2tQkZGJF46U=
+github.com/prysmaticlabs/ethereumapis v0.0.0-20210429200037-7874067c6b26/go.mod h1:a0kvrMazsvz/yGbrGIdx/Xtm5rhf/bfELx81A9pbuG0=
+github.com/prysmaticlabs/ethereumapis v0.0.0-20210429225912-6cf0a6b5b146 h1:hikMG1jToy3vs55QqREEWDQRHqu4d1UTSnhRZZ7IoOw=
+github.com/prysmaticlabs/ethereumapis v0.0.0-20210429225912-6cf0a6b5b146/go.mod h1:a0kvrMazsvz/yGbrGIdx/Xtm5rhf/bfELx81A9pbuG0=
 github.com/prysmaticlabs/go-bitfield v0.0.0-20210202205921-7fcea7c45dc8 h1:18+Qqobq3HAUY0hgIhPGSqmLFnaLLocemmU7+Sj2aYQ=
 github.com/prysmaticlabs/go-bitfield v0.0.0-20210202205921-7fcea7c45dc8/go.mod h1:hCwmef+4qXWjv0jLDbQdWnL0Ol7cS7/lCSS26WR+u6s=
 github.com/prysmaticlabs/grpc-gateway/v2 v2.3.1-0.20210330221950-3beba9ed0e19 h1:roLNAyHR6c9yx1F+shJbbDvi/YopEreddO2Pmga20Lo=
