@@ -1340,6 +1340,8 @@ github.com/prysmaticlabs/prombbolt v0.0.0-20210126082820-9b7adba6db7c h1:9PHRCuO
 github.com/prysmaticlabs/prombbolt v0.0.0-20210126082820-9b7adba6db7c/go.mod h1:ZRws458tYHS/Zs936OQ6oCrL+Ict5O4Xpwve1UQ6C9M=
 github.com/rauljordan/fastssz v0.0.0-20210428230234-6a43aceedddf h1:Qr/GFm9W7Ozjo3BeIucz3IuTPJDsGMnhw8yOrZbNMQQ=
 github.com/rauljordan/fastssz v0.0.0-20210428230234-6a43aceedddf/go.mod h1:DyEu2iuLBnb/T51BlsiO3yLYdJC6UbGMrIkqK1KmQxM=
+github.com/rauljordan/fastssz v0.0.0-20210504214435-cc0e8d961964 h1:SyENUM5RrmSdpmcnWg+ZYxMO5cja3kvhwWF2QkdmNJM=
+github.com/rauljordan/fastssz v0.0.0-20210504214435-cc0e8d961964/go.mod h1:DyEu2iuLBnb/T51BlsiO3yLYdJC6UbGMrIkqK1KmQxM=
 github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a/go.mod h1:bCqnVzQkZxMG4s8nGwiZ5l3QUCyqpo9Y+/ZMZ9VjZe4=
 github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 h1:dY6ETXrvDG7Sa4vE8ZQG4yqWg6UnOcbqTAahkV813vQ=
 github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563/go.mod h1:bCqnVzQkZxMG4s8nGwiZ5l3QUCyqpo9Y+/ZMZ9VjZe4=
