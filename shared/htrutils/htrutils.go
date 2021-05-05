@@ -103,7 +103,6 @@ func TransactionsRoot(txs [][]byte) ([32]byte, error) {
 		if err != nil {
 			return [32]byte{}, err
 		}
-		fmt.Printf("Wanted curr root %#x\n", rt)
 		listMarshaling = append(listMarshaling, rt[:])
 	}
 
@@ -139,16 +138,32 @@ func FastSSZTransactionsRootInner(hh *fssz.Hasher, txs [][]byte) error {
 	}
 	for i := uint64(0); i < num; i++ {
 		txSubIndx := hh.Index()
-		fmt.Println("subindex", txSubIndx)
-		hh.Append(txs[i])
-		//hh.PutBytes(txs[i])
-		numItems := uint64(len(txs[i]))
-		hh.MerkleizeWithMixin(txSubIndx, numItems, fssz.CalculateLimit(1048576, numItems, 8))
-		curr, err := hh.HashRoot()
+		innerHH := fssz.DefaultHasherPool.Get()
+		chunks, err := packChunks(txs[i])
 		if err != nil {
+			fssz.DefaultHasherPool.Put(innerHH)
 			return err
 		}
-		fmt.Printf("Curr root %#x\n", curr)
+		maxLength := uint64((1048576 + 31) / 32)
+		startIdx := innerHH.Index()
+		for _, chunk := range chunks {
+			innerHH.Append(chunk)
+		}
+		numItems := uint64(len(chunks))
+		innerHH.MerkleizeWithMixin(startIdx, numItems, maxLength)
+		chunksRoot, err := innerHH.HashRoot()
+		if err != nil {
+			fmt.Println("got issue")
+			fssz.DefaultHasherPool.Put(innerHH)
+			return err
+		}
+		fssz.DefaultHasherPool.Put(innerHH)
+		fmt.Printf("Got limit %d and num chunks %d, chunks root %#x\n", maxLength, numItems, chunksRoot)
+
+		// Put in the chunks root and add length mixin.
+		hh.Append(chunksRoot[:])
+		numItems = uint64(len(txs[i]))
+		hh.MerkleizeWithMixin(txSubIndx, numItems, maxLength)
 	}
 	hh.MerkleizeWithMixin(subIndx, num, 16384)
 	return nil
@@ -160,21 +175,23 @@ func transactionRoot(tx []byte) ([32]byte, error) {
 	if err != nil {
 		return [32]byte{}, err
 	}
-	fmt.Println("Num chunked roots", len(chunkedRoots))
 
 	maxLength := (params.BeaconConfig().MaxBytesPerOpaqueTransaction + 31) / 32
-	fmt.Println("Max length", maxLength)
 	bytesRoot, err := BitwiseMerkleize(hasher, chunkedRoots, uint64(len(chunkedRoots)), maxLength)
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "could not compute merkleization")
 	}
+	fmt.Printf("Wanted limit %d and num chunks %d chunks root %#x\n", maxLength, uint64(len(chunkedRoots)), bytesRoot)
+
 	bytesRootBuf := new(bytes.Buffer)
 	if err := binary.Write(bytesRootBuf, binary.LittleEndian, uint64(len(tx))); err != nil {
 		return [32]byte{}, errors.Wrap(err, "could not marshal length")
 	}
 	bytesRootBufRoot := make([]byte, 32)
 	copy(bytesRootBufRoot, bytesRootBuf.Bytes())
-	return MixInLength(bytesRoot, bytesRootBufRoot), nil
+	res := MixInLength(bytesRoot, bytesRootBufRoot)
+	fmt.Printf("Adding mixin %d to root %#x\n", len(tx), bytesRoot)
+	return res, nil
 }
 
 // Pack a given byte array into chunks. It'll pad the last chunk with zero bytes if
