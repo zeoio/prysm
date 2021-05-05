@@ -4,7 +4,9 @@ package htrutils
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 
+	fssz "github.com/ferranbt/fastssz"
 	"github.com/pkg/errors"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	pb "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
@@ -101,6 +103,7 @@ func TransactionsRoot(txs [][]byte) ([32]byte, error) {
 		if err != nil {
 			return [32]byte{}, err
 		}
+		fmt.Printf("Wanted curr root %#x\n", rt)
 		listMarshaling = append(listMarshaling, rt[:])
 	}
 
@@ -117,14 +120,50 @@ func TransactionsRoot(txs [][]byte) ([32]byte, error) {
 	return MixInLength(bytesRoot, bytesRootBufRoot), nil
 }
 
+func FastSSZTransactionsRoot(txs [][]byte) ([32]byte, error) {
+	hh := fssz.DefaultHasherPool.Get()
+	if err := FastSSZTransactionsRootInner(hh, txs); err != nil {
+		fssz.DefaultHasherPool.Put(hh)
+		return [32]byte{}, err
+	}
+	root, err := hh.HashRoot()
+	fssz.DefaultHasherPool.Put(hh)
+	return root, err
+}
+
+func FastSSZTransactionsRootInner(hh *fssz.Hasher, txs [][]byte) error {
+	subIndx := hh.Index()
+	num := uint64(len(txs))
+	if num > 16384 {
+		return fssz.ErrIncorrectListSize
+	}
+	for i := uint64(0); i < num; i++ {
+		txSubIndx := hh.Index()
+		fmt.Println("subindex", txSubIndx)
+		hh.Append(txs[i])
+		//hh.PutBytes(txs[i])
+		numItems := uint64(len(txs[i]))
+		hh.MerkleizeWithMixin(txSubIndx, numItems, fssz.CalculateLimit(1048576, numItems, 8))
+		curr, err := hh.HashRoot()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Curr root %#x\n", curr)
+	}
+	hh.MerkleizeWithMixin(subIndx, num, 16384)
+	return nil
+}
+
 func transactionRoot(tx []byte) ([32]byte, error) {
 	hasher := hashutil.CustomSHA256Hasher()
 	chunkedRoots, err := packChunks(tx)
 	if err != nil {
 		return [32]byte{}, err
 	}
+	fmt.Println("Num chunked roots", len(chunkedRoots))
 
 	maxLength := (params.BeaconConfig().MaxBytesPerOpaqueTransaction + 31) / 32
+	fmt.Println("Max length", maxLength)
 	bytesRoot, err := BitwiseMerkleize(hasher, chunkedRoots, uint64(len(chunkedRoots)), maxLength)
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "could not compute merkleization")
