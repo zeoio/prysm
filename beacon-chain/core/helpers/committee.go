@@ -407,7 +407,7 @@ func precomputeProposerIndices(state iface.ReadOnlyBeaconState, activeIndices []
 	for i := uint64(0); i < uint64(params.BeaconConfig().SlotsPerEpoch); i++ {
 		seedWithSlot := append(seed[:], bytesutil.Bytes8(uint64(slot)+i)...)
 		seedWithSlotHash := hashFunc(seedWithSlot)
-		index, err := ComputeProposerIndex(state, activeIndices, seedWithSlotHash)
+		index, err := ComputeProposerIndex(state, activeIndices, seedWithSlotHash, 0)
 		if err != nil {
 			return nil, err
 		}

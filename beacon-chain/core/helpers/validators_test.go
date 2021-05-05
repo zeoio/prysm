@@ -332,7 +332,7 @@ func TestComputeProposerIndex_Compatibility(t *testing.T) {
 	for i := uint64(0); i < uint64(params.BeaconConfig().SlotsPerEpoch); i++ {
 		seedWithSlot := append(seed[:], bytesutil.Bytes8(i)...)
 		seedWithSlotHash := hashutil.Hash(seedWithSlot)
-		index, err := ComputeProposerIndex(state, indices, seedWithSlotHash)
+		index, err := ComputeProposerIndex(state, indices, seedWithSlotHash, 0)
 		require.NoError(t, err)
 		proposerIndices = append(proposerIndices, index)
 	}
@@ -716,7 +716,7 @@ func TestComputeProposerIndex(t *testing.T) {
 			bState := &pb.BeaconState{Validators: tt.args.validators}
 			stTrie, err := stateV0.InitializeFromProtoUnsafe(bState)
 			require.NoError(t, err)
-			got, err := ComputeProposerIndex(stTrie, tt.args.indices, tt.args.seed)
+			got, err := ComputeProposerIndex(stTrie, tt.args.indices, tt.args.seed, 0)
 			if tt.wantedErr != "" {
 				assert.ErrorContains(t, tt.wantedErr, err)
 				return

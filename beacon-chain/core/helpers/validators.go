@@ -223,13 +223,18 @@ func BeaconProposerIndex(state iface.ReadOnlyBeaconState) (types.ValidatorIndex,
 		return 0, errors.Wrap(err, "could not get active indices")
 	}
 
-	return ComputeProposerIndex(state, indices, seedWithSlotHash)
+	return ComputeProposerIndex(state, indices, seedWithSlotHash, 0)
 }
 
 // ComputeProposerIndex returns the index sampled by effective balance, which is used to calculate proposer.
+// Note: This is an updated version to get a proposer index that will only allow proposers with a certain minimum balance,
+// ensuring that the balance is always sufficient to cover gas costs.
 //
 // Spec pseudocode definition:
-//  def compute_proposer_index(state: BeaconState, indices: Sequence[ValidatorIndex], seed: Bytes32) -> ValidatorIndex:
+//  def compute_proposer_index(beacon_state: BeaconState,
+//                           indices: Sequence[ValidatorIndex],
+//                           seed: Bytes32,
+//                           min_effective_balance: Gwei = Gwei(0)) -> ValidatorIndex:
 //    """
 //    Return from ``indices`` a random index sampled by effective balance.
 //    """
@@ -240,11 +245,13 @@ func BeaconProposerIndex(state iface.ReadOnlyBeaconState) (types.ValidatorIndex,
 //    while True:
 //        candidate_index = indices[compute_shuffled_index(i % total, total, seed)]
 //        random_byte = hash(seed + uint_to_bytes(uint64(i // 32)))[i % 32]
-//        effective_balance = state.validators[candidate_index].effective_balance
+//        effective_balance = beacon_state.validators[candidate_index].effective_balance
+//        if effective_balance <= min_effective_balance:
+//            continue
 //        if effective_balance * MAX_RANDOM_BYTE >= MAX_EFFECTIVE_BALANCE * random_byte:
 //            return candidate_index
 //        i += 1
-func ComputeProposerIndex(bState iface.ReadOnlyValidators, activeIndices []types.ValidatorIndex, seed [32]byte) (types.ValidatorIndex, error) {
+func ComputeProposerIndex(bState iface.ReadOnlyValidators, activeIndices []types.ValidatorIndex, seed [32]byte, minEffectiveBalance uint64) (types.ValidatorIndex, error) {
 	length := uint64(len(activeIndices))
 	if length == 0 {
 		return 0, errors.New("empty active indices list")
@@ -268,7 +275,9 @@ func ComputeProposerIndex(bState iface.ReadOnlyValidators, activeIndices []types
 			return 0, err
 		}
 		effectiveBal := v.EffectiveBalance()
-
+		if minEffectiveBalance >= effectiveBal {
+			continue
+		}
 		if effectiveBal*maxRandomByte >= params.BeaconConfig().MaxEffectiveBalance*uint64(randomByte) {
 			return candidateIndex, nil
 		}

@@ -653,7 +653,7 @@ func TestPrecomputeProposerIndices_Ok(t *testing.T) {
 	for i := uint64(0); i < uint64(params.BeaconConfig().SlotsPerEpoch); i++ {
 		seedWithSlot := append(seed[:], bytesutil.Bytes8(i)...)
 		seedWithSlotHash := hashutil.Hash(seedWithSlot)
-		index, err := ComputeProposerIndex(state, indices, seedWithSlotHash)
+		index, err := ComputeProposerIndex(state, indices, seedWithSlotHash, 0)
 		require.NoError(t, err)
 		wantedProposerIndices = append(wantedProposerIndices, index)
 	}
