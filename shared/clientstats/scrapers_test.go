@@ -129,7 +129,7 @@ func TestValidatorAPIMessageDefaults(t *testing.T) {
 	// CommonStats
 	assert.Equal(t, nowMillis, vs.Timestamp, "Unexpected 'timestamp' in client-stats APIMessage struct")
 	assert.Equal(t, APIVersion, vs.APIVersion, "Unexpected 'version' in client-stats APIMessage struct")
-	assert.Equal(t, ValidatorProcessName, vs.ProcessName, "Unexpected value for 'process' in client-stats APIMessage struct")
+	assert.Equal(t, ProcessNameValidator, vs.ProcessName, "Unexpected value for 'process' in client-stats APIMessage struct")
 }
 
 func TestBeaconNodeAPIMessageDefaults(t *testing.T) {
@@ -148,7 +148,7 @@ func TestBeaconNodeAPIMessageDefaults(t *testing.T) {
 	// CommonStats
 	assert.Equal(t, nowMillis, vs.Timestamp, "Unexpected 'timestamp' in client-stats APIMessage struct")
 	assert.Equal(t, APIVersion, vs.APIVersion, "Unexpected 'version' in client-stats APIMessage struct")
-	assert.Equal(t, BeaconNodeProcessName, vs.ProcessName, "Unexpected value for 'process' in client-stats APIMessage struct")
+	assert.Equal(t, ProcessNameBeaconNode, vs.ProcessName, "Unexpected value for 'process' in client-stats APIMessage struct")
 }
 
 func TestBadInput(t *testing.T) {
@@ -156,6 +156,53 @@ func TestBadInput(t *testing.T) {
 	bnScraper.tripper = &mockRT{body: ""}
 	_, err := bnScraper.Scrape()
 	assert.ErrorContains(t, "did not find metric family", err, "Expected errors for missing metric families on empty input.")
+}
+
+func TestSystemAPIMessageDefaults(t *testing.T) {
+	now = mockNowFunc(time.Unix(1619811114, 123456789))
+	// 1+e6 ns per ms, so 123456789 ns rounded down should be 123 ms
+	nowMillis := int64(1619811114123)
+	sScraper := systemScraper{}
+	sScraper.tripper = &mockRT{body: systemStatsFixture}
+	r, err := sScraper.Scrape()
+	assert.NoError(t, err, "unexpected error from beaconNodeScraper.Scrape()")
+
+	vs := &SystemStats{}
+	err = json.NewDecoder(r).Decode(vs)
+	assert.NoError(t, err, "Unexpected error decoding result of beaconNodeScraper.Scrape")
+
+	// APIMessage data
+	assert.Equal(t, nowMillis, vs.Timestamp, "Unexpected 'timestamp' in client-stats APIMessage struct")
+	assert.Equal(t, APIVersion, vs.APIVersion, "Unexpected 'version' in client-stats APIMessage struct")
+	assert.Equal(t, ProcessNameSystem, vs.ProcessName, "Unexpected value for 'process' in client-stats APIMessage struct")
+}
+
+func TestSystemStatsScraper(t *testing.T) {
+	now = mockNowFunc(time.Unix(1619811114, 123456789))
+	// 1+e6 ns per ms, so 123456789 ns rounded down should be 123 ms
+	nowMillis := int64(1619811114123)
+	sScraper := systemScraper{}
+	sScraper.tripper = &mockRT{body: systemStatsFixture}
+	r, err := sScraper.Scrape()
+	assert.NoError(t, err, "unexpected error from beaconNodeScraper.Scrape()")
+
+	ss := &SystemStats{}
+	err = json.NewDecoder(r).Decode(ss)
+	assert.NoError(t, err, "Unexpected error decoding result of beaconNodeScraper.Scrape")
+
+	// APIMessage data
+	assert.Equal(t, nowMillis, ss.Timestamp, "Unexpected 'timestamp' in client-stats APIMessage struct")
+	assert.Equal(t, APIVersion, ss.APIVersion, "Unexpected 'version' in client-stats APIMessage struct")
+	assert.Equal(t, ProcessNameSystem, ss.ProcessName, "Unexpected value for 'process' in client-stats APIMessage struct")
+
+	// SystemStats data
+	assert.Equal(t, int64(1620051944), ss.MiscNodeBootTimeTsSeconds, "Unexpected value scraped from node_boot_time_seconds")
+	assert.Equal(t, "Linux", ss.MiscOS, "Unexpected value for os scraped from node_uname_info sysname label")
+	assert.Equal(t, int64(4), ss.CPUCores, "Unexpected value for CPUCores")
+	assert.Equal(t, int64(137605120), ss.MemoryNodeBytesBuffers, "Unexpected value for MemoryNodeBytesBuffers")
+	assert.Equal(t, int64(16300933120), ss.MemoryNodeBytesTotal, "Unexpected value for MemoryNodeBytesTotal")
+	assert.Equal(t, int64(231034880), ss.MemoryNodeBytesFree, "Unexpected value for MemoryNodeBytesFree")
+	assert.Equal(t, int64(3191623680), ss.MemoryNodeBytesCached, "Unexpected value for MemoryNodeBytesCached")
 }
 
 var prometheusTestBody = `
@@ -221,4 +268,30 @@ validator_statuses{pubkey="pk2"} 2
 validator_statuses{pubkey="pk3"} 4
 validator_statuses{pubkey="pk4"} 5
 validator_statuses{pubkey="pk5"} 6
+`
+
+var systemStatsFixture = `# HELP node_uname_info Labeled system information as provided by the uname system call.
+# TYPE node_uname_info gauge
+node_uname_info{domainname="(none)",machine="x86_64",nodename="derp",release="",sysname="Linux",version=""} 1
+# HELP node_boot_time_seconds Node boot time, in unixtime.
+# TYPE node_boot_time_seconds gauge
+node_boot_time_seconds 1.620051944e+09
+# HELP node_memory_MemTotal_bytes Memory information field MemTotal_bytes.
+# TYPE node_memory_MemTotal_bytes gauge
+node_memory_MemTotal_bytes 1.630093312e+10
+# HELP node_memory_MemFree_bytes Memory information field MemFree_bytes.
+# TYPE node_memory_MemFree_bytes gauge
+node_memory_MemFree_bytes 2.3103488e+08
+# HELP node_memory_Cached_bytes Memory information field Cached_bytes.
+# TYPE node_memory_Cached_bytes gauge
+node_memory_Cached_bytes 3.19162368e+09
+# HELP node_memory_Buffers_bytes Memory information field Buffers_bytes.
+# TYPE node_memory_Buffers_bytes gauge
+node_memory_Buffers_bytes 1.3760512e+08
+# HELP node_cpu_core_throttles_total Number of times this CPU core has been throttled.
+# TYPE node_cpu_core_throttles_total counter
+node_cpu_core_throttles_total{core="0",package="0"} 97716
+node_cpu_core_throttles_total{core="1",package="0"} 9843
+node_cpu_core_throttles_total{core="2",package="0"} 147247
+node_cpu_core_throttles_total{core="3",package="0"} 40325
 `

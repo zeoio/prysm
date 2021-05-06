@@ -184,7 +184,7 @@ func populateBeaconNodeStats(pf metricMap) (BeaconNodeStats, error) {
 	if err != nil {
 		return bs, err
 	}
-	bs.APIMessage = populateAPIMessage(BeaconNodeProcessName)
+	bs.APIMessage = populateAPIMessage(ProcessNameBeaconNode)
 
 	var f *dto.MetricFamily
 	var m *dto.Metric
@@ -229,6 +229,22 @@ func populateBeaconNodeStats(pf metricMap) (BeaconNodeStats, error) {
 	return bs, nil
 }
 
+func getValueForLabel(pf metricMap, metricName, labelName string) (string, error) {
+	f, err := pf.getFamily(metricName)
+	if err != nil {
+		return "", err
+	}
+	m := f.Metric[0]
+
+	for _, l := range m.GetLabel() {
+		if l.GetName() == labelName {
+			return l.GetValue(), nil
+		}
+	}
+
+	return "", fmt.Errorf("Could not find label %s in metric family %s", metricName, labelName)
+}
+
 func statusIsActive(statusCode int64) bool {
 	s := eth.ValidatorStatus(statusCode)
 	return s.String() == "ACTIVE"
@@ -241,7 +257,7 @@ func populateValidatorStats(pf metricMap) (ValidatorStats, error) {
 	if err != nil {
 		return vs, err
 	}
-	vs.APIMessage = populateAPIMessage(ValidatorProcessName)
+	vs.APIMessage = populateAPIMessage(ProcessNameValidator)
 
 	f, err := pf.getFamily("validator_statuses")
 	if err != nil {
@@ -255,4 +271,93 @@ func populateValidatorStats(pf metricMap) (ValidatorStats, error) {
 	}
 
 	return vs, nil
+}
+
+func getInt64GaugeValue(pf metricMap, familyName string) (int64, error) {
+	f, err := pf.getFamily(familyName)
+	if err != nil {
+		return int64(0), err
+	}
+	m := f.Metric[0]
+	return int64(m.Gauge.GetValue()), nil
+}
+
+func populateSystemStats(pf metricMap) (SystemStats, error) {
+	var err error
+	ss := SystemStats{}
+	ss.APIMessage = populateAPIMessage(ProcessNameSystem)
+
+	ss.MemoryNodeBytesTotal, err = getInt64GaugeValue(pf, "node_memory_MemTotal_bytes")
+	if err != nil {
+		return ss, err
+	}
+
+	ss.MemoryNodeBytesFree, err = getInt64GaugeValue(pf, "node_memory_MemFree_bytes")
+	if err != nil {
+		return ss, err
+	}
+
+	ss.MemoryNodeBytesCached, err = getInt64GaugeValue(pf, "node_memory_Cached_bytes")
+	if err != nil {
+		return ss, err
+	}
+
+	ss.MemoryNodeBytesBuffers, err = getInt64GaugeValue(pf, "node_memory_Buffers_bytes")
+	if err != nil {
+		return ss, err
+	}
+
+	ss.MiscNodeBootTimeTsSeconds, err = getInt64GaugeValue(pf, "node_boot_time_seconds")
+	if err != nil {
+		return ss, err
+	}
+
+	ss.MiscOS, err = getValueForLabel(pf, "node_uname_info", "sysname")
+	if err != nil {
+		return ss, err
+	}
+
+	ss.CPUCores, err = getCPUCores(pf)
+	if err != nil {
+		return ss, err
+	}
+
+	return ss, nil
+}
+
+func getCPUCores(pf metricMap) (int64, error) {
+	f, err := pf.getFamily("node_cpu_core_throttles_total")
+	if err != nil {
+		return int64(0), err
+	}
+	return int64(len(f.Metric)), nil
+}
+
+type systemScraper struct {
+	url     string
+	tripper http.RoundTripper
+}
+
+func (sc *systemScraper) Scrape() (io.Reader, error) {
+	log.Infof("Scraping beacon-node at %s", sc.url)
+	pf, err := scrapeProm(sc.url, sc.tripper)
+	if err != nil {
+		return nil, nil
+	}
+	ss, err := populateSystemStats(pf)
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := json.Marshal(ss)
+	return bytes.NewBuffer(b), err
+}
+
+// NewValidatorScraper constructs a Scaper capable of scraping
+// the prometheus endpoint of a validator process and producing
+// the json body for the validator client-stats process type.
+func NewSystemScraper(promExpoURL string) Scraper {
+	return &systemScraper{
+		url: promExpoURL,
+	}
 }
