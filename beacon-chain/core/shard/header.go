@@ -75,10 +75,10 @@ func ProcessShardHeader(
 
 	h := header.Message
 
-	if h.Slot < 1 || types.Slot(h.Slot) > beaconState.Slot() {
+	if h.Slot < 1 || h.Slot > beaconState.Slot() {
 		return nil, errors.New("incorrect header slot")
 	}
-	epoch := helpers.SlotToEpoch(types.Slot(h.Slot))
+	epoch := helpers.SlotToEpoch(h.Slot)
 	currEpoch := helpers.CurrentEpoch(beaconState)
 	prevEpoch := helpers.PrevEpoch(beaconState)
 	if epoch != prevEpoch && epoch != currEpoch {
@@ -93,21 +93,21 @@ func ProcessShardHeader(
 	if h.Shard >= c {
 		return nil, fmt.Errorf("shard %d >= shard count %d", h.Shard, c)
 	}
-	r, err := helpers.BlockRootAtSlot(beaconState, types.Slot(h.Slot)-1)
+	r, err := helpers.BlockRootAtSlot(beaconState, h.Slot-1)
 	if err != nil {
 		return nil, err
 	}
 	if !bytes.Equal(r, h.BodySummary.BeaconBlockRoot) {
 		return nil, errors.New("incorrect beacon block root")
 	}
-	i, err := ShardProposerIndex(beaconState, types.Slot(h.Slot), h.Shard)
+	i, err := ShardProposerIndex(beaconState, h.Slot, h.Shard)
 	if err != nil {
 		return nil, err
 	}
-	if i != types.ValidatorIndex(h.ProposerIndex) {
+	if i != h.ProposerIndex {
 		return nil, errors.New("incorrect proposer index")
 	}
-	if err := helpers.ComputeDomainVerifySigningRoot(beaconState, types.ValidatorIndex(h.ProposerIndex), currEpoch, h, params.BeaconConfig().DomainShardProposer, header.Signature); err != nil {
+	if err := helpers.ComputeDomainVerifySigningRoot(beaconState, h.ProposerIndex, currEpoch, h, params.BeaconConfig().DomainShardProposer, header.Signature); err != nil {
 		return nil, err
 	}
 
@@ -134,11 +134,11 @@ func ProcessShardHeader(
 		}
 	}
 
-	ci, err := CommitteeIndexFromShard(beaconState, types.Slot(h.Slot), h.Shard)
+	ci, err := CommitteeIndexFromShard(beaconState, h.Slot, h.Shard)
 	if err != nil {
 		return nil, err
 	}
-	indices, err := helpers.BeaconCommitteeFromState(beaconState, types.Slot(h.Slot), ci)
+	indices, err := helpers.BeaconCommitteeFromState(beaconState, types.Slot(h.Slot), types.CommitteeIndex(ci))
 	if err != nil {
 		return nil, err
 	}
