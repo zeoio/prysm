@@ -13,6 +13,7 @@ import (
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	state "github.com/prysmaticlabs/prysm/beacon-chain/state/stateV0"
 	pb "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
+	"github.com/prysmaticlabs/prysm/shared/htrutils"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
@@ -250,21 +251,26 @@ func HashTreeRootWithExecutionPayload(hh *fssz.Hasher, e *ethpb.ExecutionPayload
 	hh.PutBytes(e.LogsBloom)
 
 	// Field (10) 'Transactions'
-	{
-		subIndx := hh.Index()
-		num := uint64(len(e.Transactions))
-		if num > 16384 {
-			err = fssz.ErrIncorrectListSize
-			return
-		}
-		for i := uint64(0); i < num; i++ {
-			txSubIndx := hh.Index()
-			hh.PutBytes(e.Transactions[i])
-			numItems := uint64(len(e.Transactions[i]))
-			hh.MerkleizeWithMixin(txSubIndx, numItems, fssz.CalculateLimit(1048576, numItems, 8))
-		}
-		hh.MerkleizeWithMixin(subIndx, num, 16384)
+	//{
+	//	subIndx := hh.Index()
+	//	num := uint64(len(e.Transactions))
+	//	if num > 16384 {
+	//		err = fssz.ErrIncorrectListSize
+	//		return
+	//	}
+	//	for i := uint64(0); i < num; i++ {
+	//		txSubIndx := hh.Index()
+	//		hh.PutBytes(e.Transactions[i])
+	//		numItems := uint64(len(e.Transactions[i]))
+	//		hh.MerkleizeWithMixin(txSubIndx, numItems, fssz.CalculateLimit(1048576, numItems, 8))
+	//	}
+	//	hh.MerkleizeWithMixin(subIndx, num, 16384)
+	//}
+	txRoot, err := htrutils.TransactionsRoot(e.Transactions)
+	if err != nil {
+		return
 	}
+	hh.PutBytes(txRoot[:])
 
 	hh.Merkleize(indx)
 	return

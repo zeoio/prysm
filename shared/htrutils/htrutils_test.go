@@ -2,6 +2,7 @@ package htrutils_test
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -24,6 +25,34 @@ func TestTransactionsRoot_Conformity(t *testing.T) {
 	require.NoError(t, err)
 	fastSSZResult, err := htrutils.FastSSZTransactionsRoot(transactions)
 	require.NoError(t, err)
+	if fastSSZResult != wantedResult {
+		t.Errorf("Wanted %#x, received %#x", wantedResult, fastSSZResult)
+	}
+}
+
+func TestTransactionsRoot_Conformity_SingleTransaction(t *testing.T) {
+	transaction, err := hex.DecodeString(strings.TrimPrefix(transactionFixtures[0], "0x"))
+	require.NoError(t, err)
+	wantedResult, err := htrutils.SingleTransactionChunker(transaction)
+	require.NoError(t, err)
+	fmt.Println("")
+	fastSSZResult, err := htrutils.SingleTransactionChunkerFastSSZ(transaction)
+	require.NoError(t, err)
+	if fastSSZResult != wantedResult {
+		t.Errorf("Wanted %#x, received %#x", wantedResult, fastSSZResult)
+	}
+}
+
+func TestTransactionsRoot_Conformity_Identity(t *testing.T) {
+	transaction := [32]byte{1}
+	fmt.Printf("Want %#x\n", transaction)
+
+	wantedResult, err := htrutils.SingleTransactionChunker(transaction[:])
+	require.NoError(t, err)
+
+	fastSSZResult, err := htrutils.SingleTransactionChunkerFastSSZ(transaction[:])
+	require.NoError(t, err)
+
 	if fastSSZResult != wantedResult {
 		t.Errorf("Wanted %#x, received %#x", wantedResult, fastSSZResult)
 	}

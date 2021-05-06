@@ -99,7 +99,7 @@ func TransactionsRoot(txs [][]byte) ([32]byte, error) {
 	hasher := hashutil.CustomSHA256Hasher()
 	listMarshaling := make([][]byte, 0)
 	for i := 0; i < len(txs); i++ {
-		rt, err := transactionRoot(txs[i])
+		rt, err := TransactionRoot(txs[i])
 		if err != nil {
 			return [32]byte{}, err
 		}
@@ -117,6 +117,27 @@ func TransactionsRoot(txs [][]byte) ([32]byte, error) {
 	bytesRootBufRoot := make([]byte, 32)
 	copy(bytesRootBufRoot, bytesRootBuf.Bytes())
 	return MixInLength(bytesRoot, bytesRootBufRoot), nil
+}
+
+func SingleTransactionChunkerFastSSZ(tx []byte) ([32]byte, error) {
+	// Chunk the transaction into 32 byte pieces and merkleize.
+	hh := fssz.DefaultHasherPool.Get()
+	index := hh.Index()
+	hh.Append(tx)
+	maxLength := params.BeaconConfig().MaxBytesPerOpaqueTransaction
+	hh.MerkleizeWithMixin(index, uint64(len(tx)), maxLength)
+	return hh.HashRoot()
+}
+
+func SingleTransactionChunker(tx []byte) ([32]byte, error) {
+	hasher := hashutil.CustomSHA256Hasher()
+	chunkedRoots, err := packChunks(tx)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	fmt.Println(len(chunkedRoots))
+	maxLength := (params.BeaconConfig().MaxBytesPerOpaqueTransaction + 31) / 32
+	return BitwiseMerkleize(hasher, chunkedRoots, uint64(len(chunkedRoots)), maxLength)
 }
 
 func FastSSZTransactionsRoot(txs [][]byte) ([32]byte, error) {
@@ -169,7 +190,7 @@ func FastSSZTransactionsRootInner(hh *fssz.Hasher, txs [][]byte) error {
 	return nil
 }
 
-func transactionRoot(tx []byte) ([32]byte, error) {
+func TransactionRoot(tx []byte) ([32]byte, error) {
 	hasher := hashutil.CustomSHA256Hasher()
 	chunkedRoots, err := packChunks(tx)
 	if err != nil {
@@ -181,17 +202,8 @@ func transactionRoot(tx []byte) ([32]byte, error) {
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "could not compute merkleization")
 	}
-	fmt.Printf("Wanted limit %d and num chunks %d chunks root %#x\n", maxLength, uint64(len(chunkedRoots)), bytesRoot)
-
-	bytesRootBuf := new(bytes.Buffer)
-	if err := binary.Write(bytesRootBuf, binary.LittleEndian, uint64(len(tx))); err != nil {
-		return [32]byte{}, errors.Wrap(err, "could not marshal length")
-	}
-	bytesRootBufRoot := make([]byte, 32)
-	copy(bytesRootBufRoot, bytesRootBuf.Bytes())
-	res := MixInLength(bytesRoot, bytesRootBufRoot)
-	fmt.Printf("Adding mixin %d to root %#x\n", len(tx), bytesRoot)
-	return res, nil
+	fmt.Printf("Chunk root %#x\n", bytesRoot)
+	return bytesRoot, nil
 }
 
 // Pack a given byte array into chunks. It'll pad the last chunk with zero bytes if
