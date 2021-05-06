@@ -83,3 +83,35 @@ func ShardCommittee(beaconState *state.BeaconState, epoch types.Epoch, shard uin
 	}
 	return helpers.ComputeCommittee(activeValidatorIndices, seed, shard, ActiveShardCount())
 }
+
+// ShardFromCommitteeIndex converts the index of a committee into which shard that committee is responsible for
+// at the given slot.
+//
+// Spec code:
+// def compute_shard_from_committee_index(state: BeaconState, slot: Slot, index: CommitteeIndex) -> Shard:
+//    active_shards = get_active_shard_count(state, compute_epoch_at_slot(slot))
+//    return Shard((index + get_start_shard(state, slot)) % active_shards)
+func ShardFromCommitteeIndex(beaconState *state.BeaconState, slot types.Slot, committeeID types.CommitteeIndex) (uint64, error) {
+	activeShards := ActiveShardCount()
+	startShard, err := StartShard(beaconState, slot)
+	if err != nil {
+		return 0, err
+	}
+	return (startShard + uint64(committeeID)) % activeShards, nil
+}
+
+// CommitteeIndexFromShard converts shard into committee index  that is responsible for
+// at the given slot.
+//
+// Spec code:
+// def compute_committee_index_from_shard(state: BeaconState, slot: Slot, shard: Shard) -> CommitteeIndex:
+//    active_shards = get_active_shard_count(state, compute_epoch_at_slot(slot))
+//    return CommitteeIndex((active_shards + shard - get_start_shard(state, slot)) % active_shards)
+func CommitteeIndexFromShard(beaconState *state.BeaconState, slot types.Slot, shard uint64) (uint64, error) {
+	activeShards := ActiveShardCount()
+	startShard, err := StartShard(beaconState, slot)
+	if err != nil {
+		return 0, err
+	}
+	return (shard + activeShards - startShard) % activeShards, nil
+}

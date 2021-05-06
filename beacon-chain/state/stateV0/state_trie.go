@@ -91,18 +91,23 @@ func (b *BeaconState) Copy() iface.BeaconState {
 	dst := &BeaconState{
 		state: &pbp2p.BeaconState{
 			// Primitive types, safe to copy.
-			GenesisTime:      b.state.GenesisTime,
-			Slot:             b.state.Slot,
-			Eth1DepositIndex: b.state.Eth1DepositIndex,
+			GenesisTime:            b.state.GenesisTime,
+			Slot:                   b.state.Slot,
+			Eth1DepositIndex:       b.state.Eth1DepositIndex,
+			CurrentEpochStartShard: b.state.CurrentEpochStartShard,
+			ShardGasPrice:          b.state.ShardGasPrice,
 
 			// Large arrays, infrequently changed, constant size.
-			RandaoMixes:               b.state.RandaoMixes,
-			StateRoots:                b.state.StateRoots,
-			BlockRoots:                b.state.BlockRoots,
-			PreviousEpochAttestations: b.state.PreviousEpochAttestations,
-			CurrentEpochAttestations:  b.state.CurrentEpochAttestations,
-			Slashings:                 b.state.Slashings,
-			Eth1DataVotes:             b.state.Eth1DataVotes,
+			RandaoMixes:                          b.state.RandaoMixes,
+			StateRoots:                           b.state.StateRoots,
+			BlockRoots:                           b.state.BlockRoots,
+			PreviousEpochAttestations:            b.state.PreviousEpochAttestations,
+			CurrentEpochAttestations:             b.state.CurrentEpochAttestations,
+			Slashings:                            b.state.Slashings,
+			Eth1DataVotes:                        b.state.Eth1DataVotes,
+			PreviousEpochPendingShardHeaders:     b.state.PreviousEpochPendingShardHeaders,
+			CurrentEpochPendingShardHeaders:      b.state.CurrentEpochPendingShardHeaders,
+			GrandparentEpochConfirmedCommitments: b.state.GrandparentEpochConfirmedCommitments,
 
 			// Large arrays, increases over time.
 			Validators:      b.state.Validators,
@@ -506,6 +511,32 @@ func (b *BeaconState) rootSelector(ctx context.Context, field fieldIndex) ([32]b
 		return htrutils.CheckpointRoot(hasher, b.state.FinalizedCheckpoint)
 	case latestExecutionPayloadHeader:
 		return b.state.LatestExecutionPayloadHeader.HashTreeRoot()
+	case currentEpochStartShard:
+		return htrutils.Uint64Root(b.state.CurrentEpochStartShard), nil
+	case shardGasPrice:
+		return htrutils.Uint64Root(b.state.ShardGasPrice), nil
+	case currentEpochPendingShardHeader:
+		if b.rebuildTrie[field] {
+			err := b.resetFieldTrie(field, b.state.CurrentEpochPendingShardHeaders, 131072) // TODO: Use param config.
+			if err != nil {
+				return [32]byte{}, err
+			}
+			b.dirtyIndices[field] = []uint64{}
+			delete(b.rebuildTrie, field)
+			return b.stateFieldLeaves[field].TrieRoot()
+		}
+		return b.recomputeFieldTrie(currentEpochPendingShardHeader, b.state.CurrentEpochPendingShardHeaders)
+	case previousEpochPendingShardHeader:
+		if b.rebuildTrie[field] {
+			err := b.resetFieldTrie(field, b.state.PreviousEpochPendingShardHeaders, 131072)
+			if err != nil {
+				return [32]byte{}, err
+			}
+			b.dirtyIndices[field] = []uint64{}
+			delete(b.rebuildTrie, field)
+			return b.stateFieldLeaves[field].TrieRoot()
+		}
+		return b.recomputeFieldTrie(previousEpochPendingShardHeader, b.state.PreviousEpochPendingShardHeaders)
 	}
 	return [32]byte{}, errors.New("invalid field index provided")
 }

@@ -315,3 +315,29 @@ func CopyValidator(val *ethpb.Validator) *ethpb.Validator {
 		WithdrawableEpoch:          val.WithdrawableEpoch,
 	}
 }
+
+// CopyPendingShardHeader copies the provided pending shard header object.
+func CopyPendingShardHeader(header *pbp2p.PendingShardHeader) *pbp2p.PendingShardHeader {
+	if header == nil {
+		return nil
+	}
+	return &pbp2p.PendingShardHeader{
+		Slot:           header.Slot,
+		Shard:          header.Shard,
+		DataCommitment: CopyDataCommitment(header.DataCommitment),
+		Root:           bytesutil.SafeCopyBytes(header.Root),
+		Votes:          bytesutil.SafeCopyBytes(header.Votes),
+		Confirmed:      header.Confirmed,
+	}
+}
+
+// CopyDataCommitment copies the provided data commitment object.
+func CopyDataCommitment(c *ethpb.DataCommitment) *ethpb.DataCommitment {
+	if c == nil {
+		return nil
+	}
+	return &ethpb.DataCommitment{
+		Point:  bytesutil.SafeCopyBytes(c.Point),
+		Length: c.Length,
+	}
+}

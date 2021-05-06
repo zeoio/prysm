@@ -44,7 +44,7 @@ func PendingAttRootWithHasher(hasher htrutils.HashFn, att *pb.PendingAttestation
 // PendingAttEncKey returns the encoded key in bytes of input `pendingAttestation`,
 // the returned key bytes can be used for caching purposes.
 func PendingAttEncKey(att *pb.PendingAttestation) []byte {
-	enc := make([]byte, 2192)
+	enc := make([]byte, 2224)
 
 	if att != nil {
 		copy(enc[0:2048], att.AggregationBits)
@@ -54,18 +54,18 @@ func PendingAttEncKey(att *pb.PendingAttestation) []byte {
 		copy(enc[2048:2056], inclusionBuf)
 
 		attDataBuf := marshalAttData(att.Data)
-		copy(enc[2056:2184], attDataBuf)
+		copy(enc[2056:2216], attDataBuf)
 
 		proposerBuf := make([]byte, 8)
 		binary.LittleEndian.PutUint64(proposerBuf, uint64(att.ProposerIndex))
-		copy(enc[2184:2192], proposerBuf)
+		copy(enc[2216:2224], proposerBuf)
 	}
 
 	return enc
 }
 
 func attDataRootWithHasher(hasher htrutils.HashFn, data *ethpb.AttestationData) ([32]byte, error) {
-	fieldRoots := make([][]byte, 5)
+	fieldRoots := make([][]byte, 6)
 
 	if data != nil {
 		// Slot.
@@ -97,13 +97,17 @@ func attDataRootWithHasher(hasher htrutils.HashFn, data *ethpb.AttestationData) 
 			return [32]byte{}, errors.Wrap(err, "could not compute target checkpoint merkleization")
 		}
 		fieldRoots[4] = targetRoot[:]
+
+		// Shard header root.
+		headerRoot := bytesutil.ToBytes32(data.ShardHeaderRoot)
+		fieldRoots[5] = headerRoot[:]
 	}
 
 	return htrutils.BitwiseMerkleize(hasher, fieldRoots, uint64(len(fieldRoots)), uint64(len(fieldRoots)))
 }
 
 func marshalAttData(data *ethpb.AttestationData) []byte {
-	enc := make([]byte, 128)
+	enc := make([]byte, 160)
 
 	if data != nil {
 		// Slot.
@@ -133,6 +137,9 @@ func marshalAttData(data *ethpb.AttestationData) []byte {
 			copy(enc[88:96], targetEpochBuf)
 			copy(enc[96:128], data.Target.Root)
 		}
+
+		// Shard header root.
+		copy(enc[128:160], data.ShardHeaderRoot)
 	}
 
 	return enc

@@ -129,6 +129,17 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 	MaxExecutionTransactions:     16384,
 	MaxBytesPerOpaqueTransaction: 1048576,
 
+	// Sharding related constants.
+	MaxShards:                     1024,
+	InitialActiveShards:           64,
+	GaspriceAdjustmentCoefficient: 8,
+	MaxShardHeadersPerShard:       4,
+	MaxShardProposerSlashings:     16,
+	MaxSamplesPerBlock:            2048,
+	TargetSamplesPerBlock:         1024,
+	MaxGasPrice:                   1 << 33,
+	MinGasPrice:                   8,
+
 	// BLS domain values.
 	DomainBeaconProposer:    bytesutil.ToBytes4(bytesutil.Bytes4(0)),
 	DomainBeaconAttester:    bytesutil.ToBytes4(bytesutil.Bytes4(1)),
@@ -137,6 +148,8 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 	DomainVoluntaryExit:     bytesutil.ToBytes4(bytesutil.Bytes4(4)),
 	DomainSelectionProof:    bytesutil.ToBytes4(bytesutil.Bytes4(5)),
 	DomainAggregateAndProof: bytesutil.ToBytes4(bytesutil.Bytes4(6)),
+	DomainShardProposer:     bytesutil.ToBytes4(bytesutil.Bytes4(128)),
+	DomainShardCommittee:    bytesutil.ToBytes4(bytesutil.Bytes4(129)),
 
 	// Prysm constants.
 	GweiPerEth:                1000000000,

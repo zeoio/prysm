@@ -2191,7 +2191,7 @@ func (p *PendingShardHeader) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	offset := int(109)
 
 	// Field (0) 'Slot'
-	dst = ssz.MarshalUint64(dst, p.Slot)
+	dst = ssz.MarshalUint64(dst, uint64(p.Slot))
 
 	// Field (1) 'Shard'
 	dst = ssz.MarshalUint64(dst, p.Shard)
@@ -2240,7 +2240,7 @@ func (p *PendingShardHeader) UnmarshalSSZ(buf []byte) error {
 	var o4 uint64
 
 	// Field (0) 'Slot'
-	p.Slot = ssz.UnmarshallUint64(buf[0:8])
+	p.Slot = github_com_prysmaticlabs_eth2_types.Slot(ssz.UnmarshallUint64(buf[0:8]))
 
 	// Field (1) 'Shard'
 	p.Shard = ssz.UnmarshallUint64(buf[8:16])
@@ -2301,7 +2301,7 @@ func (p *PendingShardHeader) HashTreeRootWith(hh *ssz.Hasher) (err error) {
 	indx := hh.Index()
 
 	// Field (0) 'Slot'
-	hh.PutUint64(p.Slot)
+	hh.PutUint64(uint64(p.Slot))
 
 	// Field (1) 'Shard'
 	hh.PutUint64(p.Shard)

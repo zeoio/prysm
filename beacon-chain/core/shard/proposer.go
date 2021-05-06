@@ -45,5 +45,10 @@ func ShardProposerIndex(beaconState *state.BeaconState, slot types.Slot, shard u
 	seedWithSlotHash := hashutil.Hash(seedWithSlot)
 
 	// Proposer must have sufficient balance to pay for worst case fee burn.
-	return helpers.ComputeProposerIndex(beaconState, shardCommittee, seedWithSlotHash, 0)
+
+	inc := params.BeaconConfig().EffectiveBalanceIncrement
+	downwardDeviation := inc - inc*params.BeaconConfig().HysteresisDownwardMultiplier/params.BeaconConfig().HysteresisQuotient
+	minBalance := beaconState.ShardGasPrice()*params.BeaconConfig().MaxSamplesPerBlock/params.BeaconConfig().TargetSamplesPerBlock + downwardDeviation
+
+	return helpers.ComputeProposerIndex(beaconState, shardCommittee, seedWithSlotHash, minBalance)
 }

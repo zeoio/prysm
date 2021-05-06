@@ -146,7 +146,7 @@ message ExecutionPayloadHeader {
 
 message PendingShardHeader {
   // Slot and shard that this header is intended for.
-  uint64 slot = 1;
+  uint64 slot = 1 [(gogoproto.casttype) = "github.com/prysmaticlabs/eth2-types.Slot"];
   uint64 shard = 2;
   // KGZ10 commitment to the data.
   ethereum.eth.v1alpha1.DataCommitment data_commitment = 3;

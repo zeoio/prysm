@@ -16,14 +16,14 @@ import "github.com/prysmaticlabs/prysm/shared/params"
 //        return max(prev_gasprice, MIN_GASPRICE + delta) - delta
 
 func UpdatedGasPrice(prevGasPrice uint64, shardBlockLength uint64, adjustmentQuotient uint64) uint64 {
-	targetBlockSize := params.BeaconConfig().TargetShardBlockSize
+	targetSamplesPerBlock := params.BeaconConfig().TargetSamplesPerBlock
 	maxGasPrice := params.BeaconConfig().MaxGasPrice
 	minGasPrice := params.BeaconConfig().MinGasPrice
 	// Delta can't be more than 1.
 	delta := uint64(1)
-	if shardBlockLength > targetBlockSize {
-		if delta > prevGasPrice*(shardBlockLength-targetBlockSize)/targetBlockSize/adjustmentQuotient {
-			delta = prevGasPrice * (shardBlockLength - targetBlockSize) / targetBlockSize / adjustmentQuotient
+	if shardBlockLength > targetSamplesPerBlock {
+		if delta > prevGasPrice*(shardBlockLength-targetSamplesPerBlock)/targetSamplesPerBlock/adjustmentQuotient {
+			delta = prevGasPrice * (shardBlockLength - targetSamplesPerBlock) / targetSamplesPerBlock / adjustmentQuotient
 		}
 		// Max gas price is the upper bound.
 		if prevGasPrice+delta > maxGasPrice {
@@ -31,8 +31,8 @@ func UpdatedGasPrice(prevGasPrice uint64, shardBlockLength uint64, adjustmentQuo
 		}
 		return prevGasPrice + delta
 	}
-	if delta > prevGasPrice*(targetBlockSize-shardBlockLength)/targetBlockSize/adjustmentQuotient {
-		delta = prevGasPrice * (targetBlockSize - shardBlockLength) / targetBlockSize / adjustmentQuotient
+	if delta > prevGasPrice*(targetSamplesPerBlock-shardBlockLength)/targetSamplesPerBlock/adjustmentQuotient {
+		delta = prevGasPrice * (targetSamplesPerBlock - shardBlockLength) / targetSamplesPerBlock / adjustmentQuotient
 	}
 
 	// Min gas price is the lower bound.

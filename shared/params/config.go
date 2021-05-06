@@ -93,6 +93,17 @@ type BeaconChainConfig struct {
 	MaxExecutionTransactions     uint64 `yaml:"MAX_EXECUTION_TRANSACTIONS" spec:"true"`       // MaxExecutionTransactions of beacon chain.
 	MaxBytesPerOpaqueTransaction uint64 `yaml:"MAX_BYTES_PER_OPAQUE_TRANSACTION" spec:"true"` // MAX_BYTES_PER_OPAQUE_TRANSACTION of beacon chain.
 
+	// Sharding related values.
+	MaxShards                     uint64 `yaml:"MAX_SHARDS" spec:"true"`                      // MaxShards is the theoretical max shard count (used to determine data structure sizes).
+	InitialActiveShards           uint64 `yaml:"INITIAL_ACTIVE_SHARDS" spec:"true"`           // InitialActiveShards defines the initial active shard count.
+	GaspriceAdjustmentCoefficient uint64 `yaml:"GASPRICE_ADJUSTMENT_COEFFICIENT" spec:"true"` // GaspriceAdjustmentCoefficient of the beacon chain.
+	MaxShardHeadersPerShard       uint64 `yaml:"MAX_SHARD_HEADERS_PER_SHARD" spec:"true"`     // MaxShardHeadersPerShard of the beacon chain.
+	MaxShardProposerSlashings     uint64 `yaml:"MAX_SHARD_PROPOSER_SLASHINGS" spec:"true"`    // MaxShardProposerSlashings of the beacon chain.
+	MaxSamplesPerBlock            uint64 `yaml:"MAX_SAMPLES_PER_BLOCK" spec:"true"`           // MaxSamplesPerBlock of the beacon chain.
+	TargetSamplesPerBlock         uint64 `yaml:"TARGET_SAMPLES_PER_BLOCK" spec:"true"`        // TargetSamplesPerBlock of the beacon chain.
+	MaxGasPrice                   uint64 `yaml:"MAX_GASPRICE" spec:"true"`                    // MaxGasPrice defines the max gas price.
+	MinGasPrice                   uint64 `yaml:"MIN_GASPRICE" spec:"true"`                    // MinGasPrice defines the min gas price.
+
 	// BLS domain values.
 	DomainBeaconProposer    [4]byte `yaml:"DOMAIN_BEACON_PROPOSER" spec:"true"`     // DomainBeaconProposer defines the BLS signature domain for beacon proposal verification.
 	DomainRandao            [4]byte `yaml:"DOMAIN_RANDAO" spec:"true"`              // DomainRandao defines the BLS signature domain for randao verification.
@@ -101,6 +112,8 @@ type BeaconChainConfig struct {
 	DomainVoluntaryExit     [4]byte `yaml:"DOMAIN_VOLUNTARY_EXIT" spec:"true"`      // DomainVoluntaryExit defines the BLS signature domain for exit verification.
 	DomainSelectionProof    [4]byte `yaml:"DOMAIN_SELECTION_PROOF" spec:"true"`     // DomainSelectionProof defines the BLS signature domain for selection proof.
 	DomainAggregateAndProof [4]byte `yaml:"DOMAIN_AGGREGATE_AND_PROOF" spec:"true"` // DomainAggregateAndProof defines the BLS signature domain for aggregate and proof.
+	DomainShardProposer     [4]byte `yaml:"DOMAIN_SHARD_PROPOSER" spec:"true"`      // DomainShardProposer defines the BLS signature domain for sharding.
+	DomainShardCommittee    [4]byte `yaml:"DOMAIN_SHARD_COMMITTEE" spec:"true"`     // DomainShardCommittee defines the BLS signature domain for sharding.
 
 	// Prysm constants.
 	GweiPerEth                uint64        // GweiPerEth is the amount of gwei corresponding to 1 eth.

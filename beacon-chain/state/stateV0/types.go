@@ -61,6 +61,11 @@ const (
 	currentJustifiedCheckpoint
 	finalizedCheckpoint
 	latestExecutionPayloadHeader
+	previousEpochPendingShardHeader
+	currentEpochPendingShardHeader
+	grandparentEpochConfirmedCommitments
+	currentEpochStartShard
+	shardGasPrice
 )
 
 // List of current data types the state supports.
@@ -138,6 +143,16 @@ func (f fieldIndex) String() string {
 		return "finalizedCheckpoint"
 	case latestExecutionPayloadHeader:
 		return "latestExecutionPayloadHeader"
+	case previousEpochPendingShardHeader:
+		return "previousEpochPendingShardHeader"
+	case currentEpochPendingShardHeader:
+		return "currentEpochPendingShardHeader"
+	case grandparentEpochConfirmedCommitments:
+		return "grandparentEpochConfirmedCommitments"
+	case currentEpochStartShard:
+		return "currentEpochStartShard"
+	case shardGasPrice:
+		return "shardGasPrice"
 	default:
 		return ""
 	}
