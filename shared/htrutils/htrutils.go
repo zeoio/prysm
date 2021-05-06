@@ -123,7 +123,7 @@ func SingleTransactionChunkerFastSSZ(tx []byte) ([32]byte, error) {
 	// Chunk the transaction into 32 byte pieces and merkleize.
 	hh := fssz.DefaultHasherPool.Get()
 	index := hh.Index()
-	hh.Append(tx)
+	hh.PutBytes(tx)
 	maxLength := params.BeaconConfig().MaxBytesPerOpaqueTransaction
 	hh.MerkleizeWithMixin(index, uint64(len(tx)), maxLength)
 	return hh.HashRoot()
