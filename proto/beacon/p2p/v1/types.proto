@@ -149,7 +149,7 @@ message PendingShardHeader {
   uint64 slot = 1 [(gogoproto.casttype) = "github.com/prysmaticlabs/eth2-types.Slot"];
   uint64 shard = 2;
   // KGZ10 commitment to the data.
-  ethereum.eth.v1alpha1.DataCommitment data_commitment = 3;
+  ethereum.eth.v1alpha1.DataCommitment commitment = 3;
   // Hash tree root of the shard header to be verified by attestations.
   bytes root = 4 [(gogoproto.moretags) = "ssz-size:\"32\""];
   // Validators that voted for the header.

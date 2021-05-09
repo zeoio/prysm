@@ -57,7 +57,6 @@ func ActiveShardCount() uint64 {
 // ShardCommittee returns the shard committee of a given epoch and shard.
 // The proposer of a shard block is randomly sampled from the shard committee,
 // which changes only once per ~1 day (with committees being computable 1 day ahead of time).
-
 // def get_shard_committee(beacon_state: BeaconState, epoch: Epoch, shard: Shard) -> Sequence[ValidatorIndex]:
 //    """
 //    Return the shard committee of the given ``epoch`` of the given ``shard``.
@@ -107,11 +106,11 @@ func ShardFromCommitteeIndex(beaconState *state.BeaconState, slot types.Slot, co
 // def compute_committee_index_from_shard(state: BeaconState, slot: Slot, shard: Shard) -> CommitteeIndex:
 //    active_shards = get_active_shard_count(state, compute_epoch_at_slot(slot))
 //    return CommitteeIndex((active_shards + shard - get_start_shard(state, slot)) % active_shards)
-func CommitteeIndexFromShard(beaconState *state.BeaconState, slot types.Slot, shard uint64) (uint64, error) {
+func CommitteeIndexFromShard(beaconState *state.BeaconState, slot types.Slot, shard uint64) (types.CommitteeIndex, error) {
 	activeShards := ActiveShardCount()
 	startShard, err := StartShard(beaconState, slot)
 	if err != nil {
 		return 0, err
 	}
-	return (shard + activeShards - startShard) % activeShards, nil
+	return types.CommitteeIndex((shard + activeShards - startShard) % activeShards), nil
 }
