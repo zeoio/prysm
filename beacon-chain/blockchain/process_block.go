@@ -234,6 +234,9 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []*ethpb.SignedBeaconBl
 		if err != nil {
 			return nil, nil, err
 		}
+		if err := s.insertExecPayload(ctx, b.Block); err != nil {
+			return nil, nil, err
+		}
 		// Save potential boundary states.
 		if helpers.IsEpochStart(preState.Slot()) {
 			boundaries[blockRoots[i]] = preState.Copy()
