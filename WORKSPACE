@@ -76,11 +76,9 @@ http_archive(
 
 http_archive(
     name = "io_bazel_rules_docker",
-    patch_args = ["-p1"],
-    patches = ["//third_party:rules_docker_bad_checksum.patch"],
-    sha256 = "1286175a94c0b1335efe1d75d22ea06e89742557d3fac2a0366f242a6eac6f5a",
-    strip_prefix = "rules_docker-ba4310833230294fa69b7d6ea1787ac684631a7d",
-    urls = ["https://github.com/bazelbuild/rules_docker/archive/ba4310833230294fa69b7d6ea1787ac684631a7d.tar.gz"],
+    sha256 = "59d5b42ac315e7eadffa944e86e90c2990110a1c8075f1cd145f487e999d22b3",
+    strip_prefix = "rules_docker-0.17.0",
+    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.17.0/rules_docker-v0.17.0.tar.gz"],
 )
 
 http_archive(
@@ -158,7 +156,7 @@ load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_depe
 go_rules_dependencies()
 
 go_register_toolchains(
-    go_version = "1.16",
+    go_version = "1.16.4",
     nogo = "@//:nogo",
 )
 
@@ -239,8 +237,8 @@ filegroup(
     visibility = ["//visibility:public"],
 )
     """,
-    sha256 = "deacc076365c727d653ac064894ecf0d1b0a675d86704dc8de271259f6a7314b",
-    url = "https://github.com/ethereum/eth2.0-spec-tests/releases/download/v1.1.0-alpha.3/general.tar.gz",
+    #sha256 = "deacc076365c727d653ac064894ecf0d1b0a675d86704dc8de271259f6a7314b",
+    url = "https://github.com/protolambda/eth2.0-spec-tests/releases/download/v1.1.0-alpha.4-pre1/minimal.tar.gz",
 )
 
 http_archive(
@@ -255,8 +253,8 @@ filegroup(
     visibility = ["//visibility:public"],
 )
     """,
-    sha256 = "6e9886af3d2f024e563249d70388129e28e3e92f742f289238ed9b7ec7a7f930",
-    url = "https://github.com/ethereum/eth2.0-spec-tests/releases/download/v1.1.0-alpha.3/minimal.tar.gz",
+    #sha256 = "6e9886af3d2f024e563249d70388129e28e3e92f742f289238ed9b7ec7a7f930",
+    url = "https://github.com/protolambda/eth2.0-spec-tests/releases/download/v1.1.0-alpha.4-pre1/minimal.tar.gz",
 )
 
 http_archive(
@@ -271,8 +269,8 @@ filegroup(
     visibility = ["//visibility:public"],
 )
     """,
-    sha256 = "a7b3d0ffc02a567250f424d69b2474fdc9477cd56eada60af7474560b46a8527",
-    url = "https://github.com/ethereum/eth2.0-spec-tests/releases/download/v1.1.0-alpha.3/mainnet.tar.gz",
+    #sha256 = "a7b3d0ffc02a567250f424d69b2474fdc9477cd56eada60af7474560b46a8527",
+    url = "https://github.com/protolambda/eth2.0-spec-tests/releases/download/v1.1.0-alpha.4-pre1/mainnet.tar.gz",
 )
 
 http_archive(
