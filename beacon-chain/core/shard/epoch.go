@@ -164,4 +164,5 @@ func ProcessShardEpochIncrement(state *state.BeaconState) (*state.BeaconState, e
 	if err := state.SetEpochStartShard(shard); err != nil {
 		return nil, err
 	}
+	return state, nil
 }
