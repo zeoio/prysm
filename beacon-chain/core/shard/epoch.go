@@ -2,6 +2,8 @@ package shard
 
 import (
 	types "github.com/prysmaticlabs/eth2-types"
+	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
+	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	state "github.com/prysmaticlabs/prysm/beacon-chain/state/stateV0"
 	pb "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
@@ -109,4 +111,57 @@ func ChargeConfirmedHeaderFees(state *state.BeaconState) (*state.BeaconState, er
 	state.SetShardGasPrice(newGasPrice)
 
 	return state, nil
+}
+
+// ResetPendingHeaders for beacon chain.
+func ResetPendingHeaders(state *state.BeaconState) (*state.BeaconState, error) {
+	currentHeaders := state.CurrentEpochPendingShardHeaders()
+	if err := state.SetPreviousEpochPendingShardHeader(currentHeaders); err != nil {
+		return nil, err
+	}
+	nextEpochStartSlot, err := helpers.StartSlot(helpers.NextEpoch(state))
+	if err != nil {
+		return nil, err
+	}
+	total, err := helpers.ActiveValidatorCount(state, helpers.NextEpoch(state))
+	if err != nil {
+		return nil, err
+	}
+	committessPerSlot := types.CommitteeIndex(helpers.SlotCommitteeCount(total))
+	currentHeaders = []*pb.PendingShardHeader{}
+	for slot := nextEpochStartSlot; slot < params.BeaconConfig().SlotsPerEpoch; slot++ {
+		for i := types.CommitteeIndex(0); i < committessPerSlot; i++ {
+			shard, err := ShardFromCommitteeIndex(state, slot, i)
+			if err != nil {
+				return nil, err
+			}
+			indices, err := helpers.BeaconCommitteeFromState(state, slot, i)
+			if err != nil {
+				return nil, err
+			}
+			currentHeaders = append(currentHeaders, &pb.PendingShardHeader{
+				Slot:       slot,
+				Shard:      shard,
+				Commitment: &ethpb.DataCommitment{},
+				Root:       params.BeaconConfig().ZeroHash[:],
+				Votes:      bitfield.NewBitlist(uint64(len(indices))),
+				Confirmed:  false,
+			})
+		}
+	}
+	if err := state.SetCurrentEpochPendingShardHeader(currentHeaders); err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
+// ProcessShardEpochIncrement for beacon chain.
+func ProcessShardEpochIncrement(state *state.BeaconState) (*state.BeaconState, error) {
+	shard, err := StartShard(state, state.Slot()+1)
+	if err != nil {
+		return nil, err
+	}
+	if err := state.SetEpochStartShard(shard); err != nil {
+		return nil, err
+	}
 }
