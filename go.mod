@@ -87,9 +87,10 @@ require (
 	github.com/prometheus/prom2json v1.3.0
 	github.com/prometheus/tsdb v0.10.0 // indirect
 	github.com/prysmaticlabs/eth2-types v0.0.0-20210303084904-c9735a06829d
-	github.com/prysmaticlabs/ethereumapis v0.0.0-20210511185220-89fcd65925ac
-	github.com/prysmaticlabs/go-bitfield v0.0.0-20210202205921-7fcea7c45dc8
+	github.com/prysmaticlabs/ethereumapis v0.0.0-20210524211446-3d86aead8a9e
+	github.com/prysmaticlabs/go-bitfield v0.0.0-20210515192923-def021850363
 	github.com/prysmaticlabs/prombbolt v0.0.0-20210126082820-9b7adba6db7c
+	github.com/prysmaticlabs/protoc-gen-go-cast v0.0.0-20210504233148-1e141af6a0a1 // indirect
 	github.com/rs/cors v1.7.0
 	github.com/schollz/progressbar/v3 v3.3.4
 	github.com/sirupsen/logrus v1.6.0

@@ -29,8 +29,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/powchain"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/beacon"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/beaconv1"
-	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/debug"
-	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/debugv1"
+	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/eventsv1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/node"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/nodev1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/statefetcher"
@@ -255,34 +254,36 @@ func (s *Service) Start() {
 		},
 		VoluntaryExitsPool: s.cfg.ExitPool,
 	}
+	eventsServerV1 := &eventsv1.Server{}
 	ethpb.RegisterNodeServer(s.grpcServer, nodeServer)
 	ethpbv1.RegisterBeaconNodeServer(s.grpcServer, nodeServerV1)
 	pbrpc.RegisterHealthServer(s.grpcServer, nodeServer)
 	ethpb.RegisterBeaconChainServer(s.grpcServer, beaconChainServer)
 	ethpbv1.RegisterBeaconChainServer(s.grpcServer, beaconChainServerV1)
-	if s.cfg.EnableDebugRPCEndpoints {
-		log.Info("Enabled debug gRPC endpoints")
-		debugServer := &debug.Server{
-			GenesisTimeFetcher: s.cfg.GenesisTimeFetcher,
-			BeaconDB:           s.cfg.BeaconDB,
-			StateGen:           s.cfg.StateGen,
-			HeadFetcher:        s.cfg.HeadFetcher,
-			PeerManager:        s.cfg.PeerManager,
-			PeersFetcher:       s.cfg.PeersFetcher,
-		}
-		debugServerV1 := &debugv1.Server{
-			BeaconDB:    s.cfg.BeaconDB,
-			HeadFetcher: s.cfg.HeadFetcher,
-			StateFetcher: &statefetcher.StateProvider{
-				BeaconDB:           s.cfg.BeaconDB,
-				ChainInfoFetcher:   s.cfg.ChainInfoFetcher,
-				GenesisTimeFetcher: s.cfg.GenesisTimeFetcher,
-				StateGenService:    s.cfg.StateGen,
-			},
-		}
-		pbrpc.RegisterDebugServer(s.grpcServer, debugServer)
-		ethpbv1.RegisterBeaconDebugServer(s.grpcServer, debugServerV1)
-	}
+	ethpbv1.RegisterEventsServer(s.grpcServer, eventsServerV1)
+	//if s.cfg.EnableDebugRPCEndpoints {
+	//	log.Info("Enabled debug gRPC endpoints")
+	//	debugServer := &debug.Server{
+	//		GenesisTimeFetcher: s.cfg.GenesisTimeFetcher,
+	//		BeaconDB:           s.cfg.BeaconDB,
+	//		StateGen:           s.cfg.StateGen,
+	//		HeadFetcher:        s.cfg.HeadFetcher,
+	//		PeerManager:        s.cfg.PeerManager,
+	//		PeersFetcher:       s.cfg.PeersFetcher,
+	//	}
+	//	debugServerV1 := &debugv1.Server{
+	//		BeaconDB:    s.cfg.BeaconDB,
+	//		HeadFetcher: s.cfg.HeadFetcher,
+	//		StateFetcher: &statefetcher.StateProvider{
+	//			BeaconDB:           s.cfg.BeaconDB,
+	//			ChainInfoFetcher:   s.cfg.ChainInfoFetcher,
+	//			GenesisTimeFetcher: s.cfg.GenesisTimeFetcher,
+	//			StateGenService:    s.cfg.StateGen,
+	//		},
+	//	}
+	//	pbrpc.RegisterDebugServer(s.grpcServer, debugServer)
+	//	//ethpbv1.RegisterBeaconDebugServer(s.grpcServer, debugServerV1)
+	//}
 	ethpb.RegisterBeaconNodeValidatorServer(s.grpcServer, validatorServer)
 
 	// Register reflection service on gRPC server.

@@ -3,6 +3,8 @@
 // This package includes the beacon and config endpoints.
 package eventsv1
 
+import "context"
+
 //import (
 //	"github.com/prysmaticlabs/prysm/beacon-chain/blockchain"
 //	"github.com/prysmaticlabs/prysm/beacon-chain/db"
@@ -13,6 +15,7 @@ package eventsv1
 // providing RPC endpoints to access data relevant to the Ethereum 2.0 phase 0
 // beacon chain.
 type Server struct {
+	Ctx context.Context
 	//BeaconDB     db.ReadOnlyDatabase
 	//HeadFetcher  blockchain.HeadFetcher
 	//StateFetcher statefetcher.Fetcher

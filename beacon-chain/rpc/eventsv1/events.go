@@ -4,12 +4,13 @@ import (
 	"time"
 
 	gwpb "github.com/grpc-ecosystem/grpc-gateway/v2/proto/gateway"
+	"github.com/pkg/errors"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func (s *Server) StreamEvents(
-	_ *ethpb.streame, stream pb.Events_StreamEventsServer,
+	req *ethpb.StreamEventsRequest, stream ethpb.Events_StreamEventsServer,
 ) error {
 	ticker := time.NewTicker(time.Millisecond * 500)
 	defer ticker.Stop()
@@ -26,6 +27,8 @@ func (s *Server) StreamEvents(
 			}); err != nil {
 				return err
 			}
+		case <-s.Ctx.Done():
+			return errors.New("context canceled")
 		case <-stream.Context().Done():
 			return errors.New("context canceled")
 		}
