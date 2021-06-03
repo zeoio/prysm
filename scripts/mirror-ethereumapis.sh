@@ -40,15 +40,35 @@ cd /tmp/ethereumapis || exit
 # Replace imports in go files and proto files as needed
 find ./eth -name '*.go' -print0 |
     while IFS= read -r -d '' line; do
-        sed -i 's/prysm\/proto\/eth/ethereumapis\/eth/g' "$line"
+        gsed -i 's/prysm\/proto\/eth/ethereumapis\/eth/g' "$line"
+    done
+
+find ./eth -name '*.go' -print0 |
+    while IFS= read -r -d '' line; do
+        gsed -i 's/proto\/eth/eth/g' "$line"
+    done
+
+find ./eth -name '*.go' -print0 |
+    while IFS= read -r -d '' line; do
+        gsed -i 's/proto_eth/eth/g' "$line"
     done
 
 find ./eth -name '*.proto' -print0 |
     while IFS= read -r -d '' line; do
-        sed -i 's/"proto\/eth/"eth/g' "$line"
+        gsed -i 's/"proto\/eth/"eth/g' "$line"
     done
+
+find ./eth -name '*.proto' -print0 |
+    while IFS= read -r -d '' line; do
+        gsed -i 's/prysmaticlabs\/prysm\/proto\/eth/prysmaticlabs\/ethereumapis\/eth/g' "$line"
+    done
+
+if git status | grep -q 'nothing to commit'; then
+   echo "nothing to push, exiting early"
+   exit
+fi
 
 # Push to the mirror repository
 git add --all
-git commit -am "'$BUILDKITE_BRANCH'"
+git commit -am "$BUILDKITE_BRANCH"
 git push origin master
