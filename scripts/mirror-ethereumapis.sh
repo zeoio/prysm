@@ -33,7 +33,7 @@ git clone https://github.com/prysmaticlabs/prysm /tmp/prysm/
 git clone https://github.com/prysmaticlabs/ethereumapis /tmp/ethereumapis/
 
 # Checkout the release tag in prysm and copy over protos
-cd /tmp/prysm && git checkout "$BUILDKITE_BRANCH"
+cd /tmp/prysm && git checkout "$BUILDKITE_COMMIT"
 cp -Rf /tmp/prysm/proto/eth /tmp/ethereumapis
 cd /tmp/ethereumapis || exit
 
@@ -63,12 +63,14 @@ find ./eth -name '*.proto' -print0 |
         sed -i 's/prysmaticlabs\/prysm\/proto\/eth/prysmaticlabs\/ethereumapis\/eth/g' "$line"
     done
 
-if git status | grep -q 'nothing to commit'; then
+if git diff-index --quiet HEAD --; then
    echo "nothing to push, exiting early"
    exit
+else
+   echo "changes detected, commiting and pushing to ethereumapis"
 fi
 
 # Push to the mirror repository
 git add --all
-git commit -am "$BUILDKITE_BRANCH"
+git commit -am "Mirrored from github.com/prysmaticlabs/prysm@$BUILDKITE_COMMIT"
 git push origin master
