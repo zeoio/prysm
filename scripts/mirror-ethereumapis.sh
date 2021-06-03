@@ -1,36 +1,21 @@
 #!/usr/bin/env bash
 #
-# This script accepts the following parameters:
-#
-# * tag
-# * github_api_token
-#
 # Script to mirror a tag from Prysm into EthereumAPIs protocol buffers
 #
 # Example:
 #
-# mirror-ethereumapis.sh github_api_token=TOKEN tag=v1.3.0
+# mirror-ethereumapis.sh
 #
 set -e
 
-# Check dependencies.
-# skipcq: SH-2034
-export xargs=$(which gxargs || which xargs)
-
 # Validate settings.
 [ "$TRACE" ] && set -x
-
-CONFIG=$*
-
-for line in $CONFIG; do
-  eval "$line"
-done
 
 # Define variables.
 GH_API="https://api.github.com"
 GH_REPO="$GH_API/repos/prysmaticlabs/ethereumapis"
 
-AUTH="Authorization: token $github_api_token"
+AUTH="Authorization: token $GITHUB_SECRET_ACCESS_TOKEN"
 # skipcq: SH-2034
 export WGET_ARGS="--content-disposition --auth-no-challenge --no-cookie"
 # skipcq: SH-2034
@@ -41,14 +26,14 @@ curl -o /dev/null -sH "$AUTH" "$GH_REPO" || { echo "Error: Invalid repo, token o
 
 git config --global user.email contact@prysmaticlabs.com
 git config --global user.name prylabsbot
-git config --global url."https://git:'$github_api_token'@github.com/".insteadOf "git@github.com/"
+git config --global url."https://git:'$GITHUB_SECRET_ACCESS_TOKEN'@github.com/".insteadOf "git@github.com/"
 
 # Clone ethereumapis and prysm
 git clone https://github.com/prysmaticlabs/prysm /tmp/prysm/
 git clone https://github.com/prysmaticlabs/ethereumapis /tmp/ethereumapis/
 
 # Checkout the release tag in prysm and copy over protos
-cd /tmp/prysm && git checkout "$tag"
+cd /tmp/prysm && git checkout "$BUILDKITE_BRANCH"
 cp -Rf /tmp/prysm/proto/eth /tmp/ethereumapis
 cd /tmp/ethereumapis || exit
 
@@ -65,5 +50,5 @@ find ./eth -name '*.proto' -print0 |
 
 # Push to the mirror repository
 git add --all
-git commit -am "'$tag'"
+git commit -am "'$BUILDKITE_BRANCH'"
 git push origin master
