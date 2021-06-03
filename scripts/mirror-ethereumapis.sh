@@ -25,8 +25,7 @@ export CURL_ARGS="-LJO#"
 curl -o /dev/null -sH "$AUTH" "$GH_REPO" || { echo "Error: Invalid repo, token or network issue!";  exit 1; }
 
 git config --global user.email contact@prysmaticlabs.com
-git config --global user.name prylabsbot
-git config --global url."https://git:'$GITHUB_SECRET_ACCESS_TOKEN'@github.com/".insteadOf "git@github.com/"
+git config --global user.name prylabs-bot
 
 # Clone ethereumapis and prysm
 git clone https://github.com/prysmaticlabs/prysm /tmp/prysm/
@@ -73,4 +72,5 @@ fi
 # Push to the mirror repository
 git add --all
 git commit -am "Mirrored from github.com/prysmaticlabs/prysm@$BUILDKITE_COMMIT"
+git remote set-url origin https://prylabs:$GITHUB_SECRET_ACCESS_TOKEN@github.com/prylabs/ethereumapis.git
 git push origin master
