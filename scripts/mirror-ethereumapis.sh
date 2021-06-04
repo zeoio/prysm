@@ -11,21 +11,18 @@ set -e
 # Validate settings.
 [ "$TRACE" ] && set -x
 
-# Define variables.
+## Define variables.
 GH_API="https://api.github.com"
 GH_REPO="$GH_API/repos/prysmaticlabs/ethereumapis"
 
 AUTH="Authorization: token $GITHUB_SECRET_ACCESS_TOKEN"
-# skipcq: SH-2034
+## skipcq: SH-2034
 export WGET_ARGS="--content-disposition --auth-no-challenge --no-cookie"
-# skipcq: SH-2034
+## skipcq: SH-2034
 export CURL_ARGS="-LJO#"
 
-# Validate token.
+## Validate token.
 curl -o /dev/null -sH "$AUTH" "$GH_REPO" || { echo "Error: Invalid repo, token or network issue!";  exit 1; }
-
-git config --global user.email contact@prysmaticlabs.com
-git config --global user.name prylabs-bot
 
 # Clone ethereumapis and prysm
 git clone https://github.com/prysmaticlabs/prysm /tmp/prysm/
@@ -33,10 +30,17 @@ git clone https://github.com/prysmaticlabs/ethereumapis /tmp/ethereumapis/
 
 # Checkout the release tag in prysm and copy over protos
 cd /tmp/prysm && git checkout "$BUILDKITE_COMMIT"
-cp -Rf /tmp/prysm/proto/eth /tmp/ethereumapis
+
+# Copy proto files, go files, and markdown files
+find proto/eth \( -name '*.go' -o -name '*.proto' -o -name '*.md' \) -print0 |
+    while IFS= read -r -d '' line; do
+        item_path=$(dirname "$line")
+        mkdir -p /tmp/ethereumapis"${item_path#*proto}" && cp "$line" /tmp/ethereumapis"${line#*proto}"
+    done
+
 cd /tmp/ethereumapis || exit
 
-# Replace imports in go files and proto files as needed
+## Replace imports in go files and proto files as needed
 find ./eth -name '*.go' -print0 |
     while IFS= read -r -d '' line; do
         sed -i 's/prysm\/proto\/eth/ethereumapis\/eth/g' "$line"
@@ -71,6 +75,6 @@ fi
 
 # Push to the mirror repository
 git add --all
-git commit -am "Mirrored from github.com/prysmaticlabs/prysm@$BUILDKITE_COMMIT"
+GIT_AUTHOR_EMAIL=contact@prysmaticlabs.com GIT_AUTHOR_NAME=prysm-bot git commit -am "Mirrored from github.com/prysmaticlabs/prysm@$BUILDKITE_COMMIT"
 git remote set-url origin https://prylabs:$GITHUB_SECRET_ACCESS_TOKEN@github.com/prylabs/ethereumapis.git
 git push origin master
