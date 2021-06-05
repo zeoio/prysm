@@ -7,10 +7,10 @@ import (
 	"context"
 
 	types "github.com/prysmaticlabs/eth2-types"
-	v1 "github.com/prysmaticlabs/ethereumapis/eth/v1"
-	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/go-bitfield"
 	pbp2p "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
+	v1 "github.com/prysmaticlabs/prysm/proto/eth/v1"
+	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 )
 
 // BeaconState has read and write access to beacon state methods.
@@ -44,6 +44,7 @@ type ReadOnlyBeaconState interface {
 	FieldReferencesCount() map[string]uint64
 	MarshalSSZ() ([]byte, error)
 	LatestExecutionPayloadHeader() (*pbp2p.ExecutionPayloadHeader, error)
+	IsNil() bool
 }
 
 // WriteOnlyBeaconState defines a struct which only has write access to beacon state methods.

@@ -213,3 +213,11 @@ func CommitteeSourceEpoch(epoch types.Epoch, period types.Epoch) types.Epoch {
 	}
 	return s
 }
+
+// PrevSlot returns previous slot, with an exception in slot 0 to prevent underflow.
+func PrevSlot(slot types.Slot) types.Slot {
+	if slot > 0 {
+		return slot.Sub(1)
+	}
+	return 0
+}
