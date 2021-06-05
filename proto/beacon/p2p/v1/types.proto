@@ -223,3 +223,15 @@ message SyncAggregatorSelectionData {
   // Subcommittee index of this signing data.
   uint64 subcommittee_index = 2;
 }
+
+message ShardWork {
+  oneof status {
+    bytes none = 1;
+    ethereum.eth.v1alpha1.DataCommitment data_commitment = 2;
+    PendingShardHeaders pending_shard_headers = 3;
+  }
+}
+
+message PendingShardHeaders {
+  repeated PendingShardHeader pending_shard_headers = 1 [(ethereum.eth.ext.ssz_max) = "4"];
+}
