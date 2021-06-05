@@ -34,6 +34,7 @@ message ShardBlobHeader {
   // Proposer of the shard blob.
   uint64 proposer_index = 4  [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
 }
+
 message SignedShardBlobHeader {
   ShardBlobHeader message = 1;
   bytes signature = 2 [(ethereum.eth.ext.ssz_size) = "96"];
