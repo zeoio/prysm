@@ -1,0 +1,33 @@
+load("@prysm//tools/go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "committee.go",
+        "epoch.go",
+        "gas.go",
+        "header.go",
+        "proposer.go",
+        "shard.go",
+        "slashing.go",
+        "vote.go",
+    ],
+    importpath = "github.com/prysmaticlabs/prysm/beacon-chain/core/shard",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//beacon-chain/core/helpers:go_default_library",
+        "//beacon-chain/core/validators:go_default_library",
+        "//beacon-chain/state/interface:go_default_library",
+        "//beacon-chain/state/stateV0:go_default_library",
+        "//proto/beacon/p2p/v1:go_default_library",
+        "//proto/eth/v1alpha1:go_default_library",
+        "//shared/attestationutil:go_default_library",
+        "//shared/bytesutil:go_default_library",
+        "//shared/hashutil:go_default_library",
+        "//shared/params:go_default_library",
+        "@com_github_gogo_protobuf//proto:go_default_library",
+        "@com_github_pkg_errors//:go_default_library",
+        "@com_github_prysmaticlabs_eth2_types//:go_default_library",
+        "@com_github_prysmaticlabs_go_bitfield//:go_default_library",
+    ],
+)

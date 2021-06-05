@@ -72,6 +72,9 @@ message AttestationData {
 
     // The checkpoint attempting to be justified for the current epoch and its epoch boundary block
     Checkpoint target = 5;
+
+    // The shard header root of the attestation attesting for.
+    bytes shard_header_root = 6 [(ethereum.eth.ext.ssz_size) = "32"];
 }
 
 message Checkpoint {

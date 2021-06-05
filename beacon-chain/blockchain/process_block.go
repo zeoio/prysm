@@ -106,14 +106,6 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 		return err
 	}
 
-	valid, err := set.Verify()
-	if err != nil {
-		return errors.Wrap(err, "could not batch verify signature")
-	}
-	if !valid {
-		return errors.New("signature in block failed to verify")
-	}
-
 	if err := s.savePostStateInfo(ctx, blockRoot, signed, postState, false /* reg sync */); err != nil {
 		return err
 	}
@@ -235,7 +227,7 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 		if err != nil {
 			return nil, nil, err
 		}
-		if err := s.insertExecPayload(ctx, b.Block); err != nil {
+		if err := s.insertExecPayload(ctx, b.Block()); err != nil {
 			return nil, nil, err
 		}
 		// Save potential boundary states.
@@ -410,8 +402,8 @@ func (s *Service) savePostStateInfo(ctx context.Context, r [32]byte, b interface
 }
 
 // This inserts execution payload to the pow node.
-func (s *Service) insertExecPayload(ctx context.Context, b *ethpb.BeaconBlock) error {
-	payload := b.Body.ExecutionPayload
+func (s *Service) insertExecPayload(ctx context.Context, b interfaces.BeaconBlock) error {
+	payload := b.Body().ExecutionPayload()
 	resp, err := s.cfg.ExecutionPayloadExecutor.InsertExecutionPayload(ctx, helpers.ExecPayloadToJson(payload))
 	if err != nil {
 		return err

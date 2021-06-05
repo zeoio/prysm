@@ -43,6 +43,7 @@ type BeaconBlockBody interface {
 	Attestations() []*ethpb.Attestation
 	Deposits() []*ethpb.Deposit
 	VoluntaryExits() []*ethpb.SignedVoluntaryExit
+	ExecutionPayload() *ethpb.ExecutionPayload
 	IsNil() bool
 	HashTreeRoot() ([32]byte, error)
 	Proto() proto.Message

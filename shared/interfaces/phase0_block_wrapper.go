@@ -122,6 +122,11 @@ type Phase0BeaconBlockBody struct {
 	b *ethpb.BeaconBlockBody
 }
 
+// ExecutionPayLoad ExecutionPayload returns the execution payload in the block.
+func (w Phase0BeaconBlockBody) ExecutionPayload() *ethpb.ExecutionPayload {
+	return w.b.ExecutionPayload
+}
+
 // WrappedPhase0BeaconBlockBody is constructor which wraps a protobuf phase 0 object
 // with the block wrapper.
 func WrappedPhase0BeaconBlockBody(b *ethpb.BeaconBlockBody) Phase0BeaconBlockBody {

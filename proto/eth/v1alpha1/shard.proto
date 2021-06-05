@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package ethereum.eth.v1alpha1;
+
+import "proto/eth/ext/options.proto";
+
+option csharp_namespace = "Ethereum.Eth.v1alpha1";
+option go_package = "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1;eth";
+
+message DataCommitment {
+  // KZG10 commitment to the data.
+  bytes point = 1 [(ethereum.eth.ext.ssz_size) = "48"];
+  // Length of the data in samples.
+  uint64 length = 2;
+}
+
+message ShardBlobBodySummary {
+  // The actual data commitment.
+  DataCommitment commitment = 1;
+  // Proof that degree is lesser than commitment length.
+  bytes degree_proof = 2 [(ethereum.eth.ext.ssz_size) = "48"];
+  // Hash tree root as summary of the data field.
+  bytes data_root = 3 [(ethereum.eth.ext.ssz_size) = "32"];
+  // Hash tree root of latest beacon block that's before shard blob slot.
+  bytes beacon_block_root = 4 [(ethereum.eth.ext.ssz_size) = "32"];
+
+}
+
+message ShardBlobHeader {
+  // Slot and shard that this header is intended for.
+  uint64 slot = 1   [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Slot"];
+  uint64 shard = 2;
+  ShardBlobBodySummary body_summary = 3;
+  // Proposer of the shard blob.
+  uint64 proposer_index = 4  [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
+}
+message SignedShardBlobHeader {
+  ShardBlobHeader message = 1;
+  bytes signature = 2 [(ethereum.eth.ext.ssz_size) = "96"];
+}
+
+message ShardBlobReference {
+  // Slot and shard that this reference is intended for.
+  uint64 slot = 1   [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Slot"];;
+  uint64 shard = 2;
+  // Hash tree root of the blob body summary.
+  bytes body_root = 3 [(ethereum.eth.ext.ssz_size) = "32"];
+  // Proposer of the shard blob.
+  uint64 proposer_index = 4 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
+}
+
+message SignedShardBlobReference {
+  ShardBlobReference message = 1;
+  bytes signature = 2 [(ethereum.eth.ext.ssz_size) = "96"];
+}
+
+message ShardProposerSlashing {
+  SignedShardBlobReference signed_reference_1 = 1;
+  SignedShardBlobReference signed_reference_2 = 2;
+}

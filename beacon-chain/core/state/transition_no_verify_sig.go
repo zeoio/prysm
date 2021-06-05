@@ -307,7 +307,7 @@ func ProcessBlockForStateRoot(
 		return nil, errors.Wrap(err, "could not process block operation")
 	}
 
-	payload := signed.Block.Body.ExecutionPayload
+	payload := signed.Block().Body().ExecutionPayload()
 	header, err := helpers.ExecPayloadToHeader(payload)
 	if err != nil {
 		return nil, err

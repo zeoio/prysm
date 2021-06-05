@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 
 	"github.com/pkg/errors"
-	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	pb "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
+	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/hashutil"
 	"github.com/prysmaticlabs/prysm/shared/htrutils"
@@ -57,7 +57,7 @@ func shardHeaderRoot(hasher htrutils.HashFn, header *pb.PendingShardHeader) ([32
 		shardRoot := bytesutil.ToBytes32(shardBuf)
 		fieldRoots[1] = shardRoot[:]
 
-		dataRoot, err := dataCommitmentRoot(hasher, header.DataCommitment)
+		dataRoot, err := dataCommitmentRoot(hasher, header.Commitment)
 		if err != nil {
 			return [32]byte{}, err
 		}
@@ -102,7 +102,7 @@ func dataCommitmentRoot(hasher htrutils.HashFn, commitment *ethpb.DataCommitment
 
 		lengthRoot := make([]byte, 32)
 		binary.LittleEndian.PutUint64(lengthRoot[:8], commitment.Length)
-		fieldRoots[1] = lengthRoot[:]
+		fieldRoots[1] = lengthRoot
 	}
 
 	return htrutils.BitwiseMerkleize(hasher, fieldRoots, uint64(len(fieldRoots)), uint64(len(fieldRoots)))

@@ -1,6 +1,9 @@
 package stateV0
 
-import pbp2p "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
+import (
+	pbp2p "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
+	"github.com/prysmaticlabs/prysm/shared/copyutil"
+)
 
 // CurrentEpochStartShard of the current beacon chain state.
 func (b *BeaconState) CurrentEpochStartShard() uint64 {
@@ -81,7 +84,7 @@ func (b *BeaconState) safeCopyPendingShardHeaderSlice(input []*pbp2p.PendingShar
 
 	res := make([]*pbp2p.PendingShardHeader, len(input))
 	for i := 0; i < len(res); i++ {
-		res[i] = CopyPendingShardHeader(input[i])
+		res[i] = copyutil.CopyPendingShardHeader(input[i])
 	}
 	return res
 }

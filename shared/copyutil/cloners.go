@@ -322,12 +322,12 @@ func CopyPendingShardHeader(header *pbp2p.PendingShardHeader) *pbp2p.PendingShar
 		return nil
 	}
 	return &pbp2p.PendingShardHeader{
-		Slot:           header.Slot,
-		Shard:          header.Shard,
-		DataCommitment: CopyDataCommitment(header.DataCommitment),
-		Root:           bytesutil.SafeCopyBytes(header.Root),
-		Votes:          bytesutil.SafeCopyBytes(header.Votes),
-		Confirmed:      header.Confirmed,
+		Slot:       header.Slot,
+		Shard:      header.Shard,
+		Commitment: CopyDataCommitment(header.Commitment),
+		Root:       bytesutil.SafeCopyBytes(header.Root),
+		Votes:      bytesutil.SafeCopyBytes(header.Votes),
+		Confirmed:  header.Confirmed,
 	}
 }
 
