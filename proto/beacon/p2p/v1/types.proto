@@ -193,17 +193,11 @@ message ExecutionPayloadHeader {
 }
 
 message PendingShardHeader {
-  // Slot and shard that this header is intended for.
-  uint64 slot = 1 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Slot"];
-  uint64 shard = 2;
-  // KGZ10 commitment to the data.
-  ethereum.eth.v1alpha1.DataCommitment commitment = 3;
-  // Hash tree root of the shard header to be verified by attestations.
-  bytes root = 4 [(ethereum.eth.ext.ssz_size) = "32"];
-  // Validators that voted for the header.
-  bytes votes = 5  [(ethereum.eth.ext.ssz_max) = "2048", (ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/go-bitfield.Bitlist"];
-  // Status whether header has been confirmed.
-  bool confirmed = 6;
+  ethereum.eth.v1alpha1.DataCommitment commitment = 1;
+  bytes root = 2 [(ethereum.eth.ext.ssz_size) = "32"];
+  bytes votes = 3  [(ethereum.eth.ext.ssz_max) = "2048", (ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/go-bitfield.Bitlist"];
+  uint64 weight = 4;
+  uint64 updated_slot = 5 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Slot"];
 }
 
 message EpochDataCommitments {

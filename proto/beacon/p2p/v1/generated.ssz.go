@@ -457,7 +457,7 @@ func (b *BeaconState) MarshalSSZ() ([]byte, error) {
 // MarshalSSZTo ssz marshals the BeaconState object to a target array
 func (b *BeaconState) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	dst = buf
-	offset := int(2687377)
+	offset := int(2687873)
 
 	// Field (0) 'GenesisTime'
 	dst = ssz.MarshalUint64(dst, b.GenesisTime)
@@ -608,6 +608,41 @@ func (b *BeaconState) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 		return
 	}
 
+	// Field (21) 'LatestExecutionPayloadHeader'
+	if b.LatestExecutionPayloadHeader == nil {
+		b.LatestExecutionPayloadHeader = new(ExecutionPayloadHeader)
+	}
+	if dst, err = b.LatestExecutionPayloadHeader.MarshalSSZTo(dst); err != nil {
+		return
+	}
+
+	// Offset (22) 'PreviousEpochPendingShardHeaders'
+	dst = ssz.WriteOffset(dst, offset)
+	for ii := 0; ii < len(b.PreviousEpochPendingShardHeaders); ii++ {
+		offset += 4
+		offset += b.PreviousEpochPendingShardHeaders[ii].SizeSSZ()
+	}
+
+	// Offset (23) 'CurrentEpochPendingShardHeaders'
+	dst = ssz.WriteOffset(dst, offset)
+	for ii := 0; ii < len(b.CurrentEpochPendingShardHeaders); ii++ {
+		offset += 4
+		offset += b.CurrentEpochPendingShardHeaders[ii].SizeSSZ()
+	}
+
+	// Offset (24) 'GrandparentEpochConfirmedCommitments'
+	dst = ssz.WriteOffset(dst, offset)
+	for ii := 0; ii < len(b.GrandparentEpochConfirmedCommitments); ii++ {
+		offset += 4
+		offset += b.GrandparentEpochConfirmedCommitments[ii].SizeSSZ()
+	}
+
+	// Field (25) 'ShardGasPrice'
+	dst = ssz.MarshalUint64(dst, b.ShardGasPrice)
+
+	// Field (26) 'CurrentEpochStartShard'
+	dst = ssz.MarshalUint64(dst, b.CurrentEpochStartShard)
+
 	// Field (7) 'HistoricalRoots'
 	if len(b.HistoricalRoots) > 16777216 {
 		err = ssz.ErrListTooBig
@@ -688,6 +723,60 @@ func (b *BeaconState) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 		}
 	}
 
+	// Field (22) 'PreviousEpochPendingShardHeaders'
+	if len(b.PreviousEpochPendingShardHeaders) > 131072 {
+		err = ssz.ErrListTooBig
+		return
+	}
+	{
+		offset = 4 * len(b.PreviousEpochPendingShardHeaders)
+		for ii := 0; ii < len(b.PreviousEpochPendingShardHeaders); ii++ {
+			dst = ssz.WriteOffset(dst, offset)
+			offset += b.PreviousEpochPendingShardHeaders[ii].SizeSSZ()
+		}
+	}
+	for ii := 0; ii < len(b.PreviousEpochPendingShardHeaders); ii++ {
+		if dst, err = b.PreviousEpochPendingShardHeaders[ii].MarshalSSZTo(dst); err != nil {
+			return
+		}
+	}
+
+	// Field (23) 'CurrentEpochPendingShardHeaders'
+	if len(b.CurrentEpochPendingShardHeaders) > 131072 {
+		err = ssz.ErrListTooBig
+		return
+	}
+	{
+		offset = 4 * len(b.CurrentEpochPendingShardHeaders)
+		for ii := 0; ii < len(b.CurrentEpochPendingShardHeaders); ii++ {
+			dst = ssz.WriteOffset(dst, offset)
+			offset += b.CurrentEpochPendingShardHeaders[ii].SizeSSZ()
+		}
+	}
+	for ii := 0; ii < len(b.CurrentEpochPendingShardHeaders); ii++ {
+		if dst, err = b.CurrentEpochPendingShardHeaders[ii].MarshalSSZTo(dst); err != nil {
+			return
+		}
+	}
+
+	// Field (24) 'GrandparentEpochConfirmedCommitments'
+	if len(b.GrandparentEpochConfirmedCommitments) > 1024 {
+		err = ssz.ErrListTooBig
+		return
+	}
+	{
+		offset = 4 * len(b.GrandparentEpochConfirmedCommitments)
+		for ii := 0; ii < len(b.GrandparentEpochConfirmedCommitments); ii++ {
+			dst = ssz.WriteOffset(dst, offset)
+			offset += b.GrandparentEpochConfirmedCommitments[ii].SizeSSZ()
+		}
+	}
+	for ii := 0; ii < len(b.GrandparentEpochConfirmedCommitments); ii++ {
+		if dst, err = b.GrandparentEpochConfirmedCommitments[ii].MarshalSSZTo(dst); err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -695,12 +784,12 @@ func (b *BeaconState) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 func (b *BeaconState) UnmarshalSSZ(buf []byte) error {
 	var err error
 	size := uint64(len(buf))
-	if size < 2687377 {
+	if size < 2687873 {
 		return ssz.ErrSize
 	}
 
 	tail := buf
-	var o7, o9, o11, o12, o15, o16 uint64
+	var o7, o9, o11, o12, o15, o16, o22, o23, o24 uint64
 
 	// Field (0) 'GenesisTime'
 	b.GenesisTime = ssz.UnmarshallUint64(buf[0:8])
@@ -834,6 +923,35 @@ func (b *BeaconState) UnmarshalSSZ(buf []byte) error {
 		return err
 	}
 
+	// Field (21) 'LatestExecutionPayloadHeader'
+	if b.LatestExecutionPayloadHeader == nil {
+		b.LatestExecutionPayloadHeader = new(ExecutionPayloadHeader)
+	}
+	if err = b.LatestExecutionPayloadHeader.UnmarshalSSZ(buf[2687377:2687845]); err != nil {
+		return err
+	}
+
+	// Offset (22) 'PreviousEpochPendingShardHeaders'
+	if o22 = ssz.ReadOffset(buf[2687845:2687849]); o22 > size || o16 > o22 {
+		return ssz.ErrOffset
+	}
+
+	// Offset (23) 'CurrentEpochPendingShardHeaders'
+	if o23 = ssz.ReadOffset(buf[2687849:2687853]); o23 > size || o22 > o23 {
+		return ssz.ErrOffset
+	}
+
+	// Offset (24) 'GrandparentEpochConfirmedCommitments'
+	if o24 = ssz.ReadOffset(buf[2687853:2687857]); o24 > size || o23 > o24 {
+		return ssz.ErrOffset
+	}
+
+	// Field (25) 'ShardGasPrice'
+	b.ShardGasPrice = ssz.UnmarshallUint64(buf[2687857:2687865])
+
+	// Field (26) 'CurrentEpochStartShard'
+	b.CurrentEpochStartShard = ssz.UnmarshallUint64(buf[2687865:2687873])
+
 	// Field (7) 'HistoricalRoots'
 	{
 		buf = tail[o7:o9]
@@ -923,7 +1041,7 @@ func (b *BeaconState) UnmarshalSSZ(buf []byte) error {
 
 	// Field (16) 'CurrentEpochAttestations'
 	{
-		buf = tail[o16:]
+		buf = tail[o16:o22]
 		num, err := ssz.DecodeDynamicLength(buf, 4096)
 		if err != nil {
 			return err
@@ -942,12 +1060,78 @@ func (b *BeaconState) UnmarshalSSZ(buf []byte) error {
 			return err
 		}
 	}
+
+	// Field (22) 'PreviousEpochPendingShardHeaders'
+	{
+		buf = tail[o22:o23]
+		num, err := ssz.DecodeDynamicLength(buf, 131072)
+		if err != nil {
+			return err
+		}
+		b.PreviousEpochPendingShardHeaders = make([]*PendingShardHeader, num)
+		err = ssz.UnmarshalDynamic(buf, num, func(indx int, buf []byte) (err error) {
+			if b.PreviousEpochPendingShardHeaders[indx] == nil {
+				b.PreviousEpochPendingShardHeaders[indx] = new(PendingShardHeader)
+			}
+			if err = b.PreviousEpochPendingShardHeaders[indx].UnmarshalSSZ(buf); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	// Field (23) 'CurrentEpochPendingShardHeaders'
+	{
+		buf = tail[o23:o24]
+		num, err := ssz.DecodeDynamicLength(buf, 131072)
+		if err != nil {
+			return err
+		}
+		b.CurrentEpochPendingShardHeaders = make([]*PendingShardHeader, num)
+		err = ssz.UnmarshalDynamic(buf, num, func(indx int, buf []byte) (err error) {
+			if b.CurrentEpochPendingShardHeaders[indx] == nil {
+				b.CurrentEpochPendingShardHeaders[indx] = new(PendingShardHeader)
+			}
+			if err = b.CurrentEpochPendingShardHeaders[indx].UnmarshalSSZ(buf); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	// Field (24) 'GrandparentEpochConfirmedCommitments'
+	{
+		buf = tail[o24:]
+		num, err := ssz.DecodeDynamicLength(buf, 1024)
+		if err != nil {
+			return err
+		}
+		b.GrandparentEpochConfirmedCommitments = make([]*EpochDataCommitments, num)
+		err = ssz.UnmarshalDynamic(buf, num, func(indx int, buf []byte) (err error) {
+			if b.GrandparentEpochConfirmedCommitments[indx] == nil {
+				b.GrandparentEpochConfirmedCommitments[indx] = new(EpochDataCommitments)
+			}
+			if err = b.GrandparentEpochConfirmedCommitments[indx].UnmarshalSSZ(buf); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
 	return err
 }
 
 // SizeSSZ returns the ssz encoded size in bytes for the BeaconState object
 func (b *BeaconState) SizeSSZ() (size int) {
-	size = 2687377
+	size = 2687873
 
 	// Field (7) 'HistoricalRoots'
 	size += len(b.HistoricalRoots) * 32
@@ -971,6 +1155,24 @@ func (b *BeaconState) SizeSSZ() (size int) {
 	for ii := 0; ii < len(b.CurrentEpochAttestations); ii++ {
 		size += 4
 		size += b.CurrentEpochAttestations[ii].SizeSSZ()
+	}
+
+	// Field (22) 'PreviousEpochPendingShardHeaders'
+	for ii := 0; ii < len(b.PreviousEpochPendingShardHeaders); ii++ {
+		size += 4
+		size += b.PreviousEpochPendingShardHeaders[ii].SizeSSZ()
+	}
+
+	// Field (23) 'CurrentEpochPendingShardHeaders'
+	for ii := 0; ii < len(b.CurrentEpochPendingShardHeaders); ii++ {
+		size += 4
+		size += b.CurrentEpochPendingShardHeaders[ii].SizeSSZ()
+	}
+
+	// Field (24) 'GrandparentEpochConfirmedCommitments'
+	for ii := 0; ii < len(b.GrandparentEpochConfirmedCommitments); ii++ {
+		size += 4
+		size += b.GrandparentEpochConfirmedCommitments[ii].SizeSSZ()
 	}
 
 	return
@@ -1198,6 +1400,65 @@ func (b *BeaconState) HashTreeRootWith(hh *ssz.Hasher) (err error) {
 	if err = b.FinalizedCheckpoint.HashTreeRootWith(hh); err != nil {
 		return
 	}
+
+	// Field (21) 'LatestExecutionPayloadHeader'
+	if err = b.LatestExecutionPayloadHeader.HashTreeRootWith(hh); err != nil {
+		return
+	}
+
+	// Field (22) 'PreviousEpochPendingShardHeaders'
+	{
+		subIndx := hh.Index()
+		num := uint64(len(b.PreviousEpochPendingShardHeaders))
+		if num > 131072 {
+			err = ssz.ErrIncorrectListSize
+			return
+		}
+		for i := uint64(0); i < num; i++ {
+			if err = b.PreviousEpochPendingShardHeaders[i].HashTreeRootWith(hh); err != nil {
+				return
+			}
+		}
+		hh.MerkleizeWithMixin(subIndx, num, 131072)
+	}
+
+	// Field (23) 'CurrentEpochPendingShardHeaders'
+	{
+		subIndx := hh.Index()
+		num := uint64(len(b.CurrentEpochPendingShardHeaders))
+		if num > 131072 {
+			err = ssz.ErrIncorrectListSize
+			return
+		}
+		for i := uint64(0); i < num; i++ {
+			if err = b.CurrentEpochPendingShardHeaders[i].HashTreeRootWith(hh); err != nil {
+				return
+			}
+		}
+		hh.MerkleizeWithMixin(subIndx, num, 131072)
+	}
+
+	// Field (24) 'GrandparentEpochConfirmedCommitments'
+	{
+		subIndx := hh.Index()
+		num := uint64(len(b.GrandparentEpochConfirmedCommitments))
+		if num > 1024 {
+			err = ssz.ErrIncorrectListSize
+			return
+		}
+		for i := uint64(0); i < num; i++ {
+			if err = b.GrandparentEpochConfirmedCommitments[i].HashTreeRootWith(hh); err != nil {
+				return
+			}
+		}
+		hh.MerkleizeWithMixin(subIndx, num, 1024)
+	}
+
+	// Field (25) 'ShardGasPrice'
+	hh.PutUint64(b.ShardGasPrice)
+
+	// Field (26) 'CurrentEpochStartShard'
+	hh.PutUint64(b.CurrentEpochStartShard)
 
 	hh.Merkleize(indx)
 	return
@@ -2075,7 +2336,7 @@ func (p *PendingAttestation) MarshalSSZ() ([]byte, error) {
 // MarshalSSZTo ssz marshals the PendingAttestation object to a target array
 func (p *PendingAttestation) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	dst = buf
-	offset := int(148)
+	offset := int(180)
 
 	// Offset (0) 'AggregationBits'
 	dst = ssz.WriteOffset(dst, offset)
@@ -2109,7 +2370,7 @@ func (p *PendingAttestation) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 func (p *PendingAttestation) UnmarshalSSZ(buf []byte) error {
 	var err error
 	size := uint64(len(buf))
-	if size < 148 {
+	if size < 180 {
 		return ssz.ErrSize
 	}
 
@@ -2125,15 +2386,15 @@ func (p *PendingAttestation) UnmarshalSSZ(buf []byte) error {
 	if p.Data == nil {
 		p.Data = new(v1alpha1.AttestationData)
 	}
-	if err = p.Data.UnmarshalSSZ(buf[4:132]); err != nil {
+	if err = p.Data.UnmarshalSSZ(buf[4:164]); err != nil {
 		return err
 	}
 
 	// Field (2) 'InclusionDelay'
-	p.InclusionDelay = github_com_prysmaticlabs_eth2_types.Slot(ssz.UnmarshallUint64(buf[132:140]))
+	p.InclusionDelay = github_com_prysmaticlabs_eth2_types.Slot(ssz.UnmarshallUint64(buf[164:172]))
 
 	// Field (3) 'ProposerIndex'
-	p.ProposerIndex = github_com_prysmaticlabs_eth2_types.ValidatorIndex(ssz.UnmarshallUint64(buf[140:148]))
+	p.ProposerIndex = github_com_prysmaticlabs_eth2_types.ValidatorIndex(ssz.UnmarshallUint64(buf[172:180]))
 
 	// Field (0) 'AggregationBits'
 	{
@@ -2151,7 +2412,7 @@ func (p *PendingAttestation) UnmarshalSSZ(buf []byte) error {
 
 // SizeSSZ returns the ssz encoded size in bytes for the PendingAttestation object
 func (p *PendingAttestation) SizeSSZ() (size int) {
-	size = 148
+	size = 180
 
 	// Field (0) 'AggregationBits'
 	size += len(p.AggregationBits)
@@ -2560,6 +2821,470 @@ func (d *DepositMessage) HashTreeRootWith(hh *ssz.Hasher) (err error) {
 
 	// Field (2) 'Amount'
 	hh.PutUint64(d.Amount)
+
+	hh.Merkleize(indx)
+	return
+}
+
+// MarshalSSZ ssz marshals the ExecutionPayloadHeader object
+func (e *ExecutionPayloadHeader) MarshalSSZ() ([]byte, error) {
+	return ssz.MarshalSSZ(e)
+}
+
+// MarshalSSZTo ssz marshals the ExecutionPayloadHeader object to a target array
+func (e *ExecutionPayloadHeader) MarshalSSZTo(buf []byte) (dst []byte, err error) {
+	dst = buf
+
+	// Field (0) 'BlockHash'
+	if len(e.BlockHash) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.BlockHash...)
+
+	// Field (1) 'ParentHash'
+	if len(e.ParentHash) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.ParentHash...)
+
+	// Field (2) 'Coinbase'
+	if len(e.Coinbase) != 20 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.Coinbase...)
+
+	// Field (3) 'StateRoot'
+	if len(e.StateRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.StateRoot...)
+
+	// Field (4) 'Number'
+	dst = ssz.MarshalUint64(dst, e.Number)
+
+	// Field (5) 'GasLimit'
+	dst = ssz.MarshalUint64(dst, e.GasLimit)
+
+	// Field (6) 'GasUsed'
+	dst = ssz.MarshalUint64(dst, e.GasUsed)
+
+	// Field (7) 'Timestamp'
+	dst = ssz.MarshalUint64(dst, e.Timestamp)
+
+	// Field (8) 'ReceiptRoot'
+	if len(e.ReceiptRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.ReceiptRoot...)
+
+	// Field (9) 'LogsBloom'
+	if len(e.LogsBloom) != 256 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.LogsBloom...)
+
+	// Field (10) 'TransactionsRoot'
+	if len(e.TransactionsRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.TransactionsRoot...)
+
+	return
+}
+
+// UnmarshalSSZ ssz unmarshals the ExecutionPayloadHeader object
+func (e *ExecutionPayloadHeader) UnmarshalSSZ(buf []byte) error {
+	var err error
+	size := uint64(len(buf))
+	if size != 468 {
+		return ssz.ErrSize
+	}
+
+	// Field (0) 'BlockHash'
+	if cap(e.BlockHash) == 0 {
+		e.BlockHash = make([]byte, 0, len(buf[0:32]))
+	}
+	e.BlockHash = append(e.BlockHash, buf[0:32]...)
+
+	// Field (1) 'ParentHash'
+	if cap(e.ParentHash) == 0 {
+		e.ParentHash = make([]byte, 0, len(buf[32:64]))
+	}
+	e.ParentHash = append(e.ParentHash, buf[32:64]...)
+
+	// Field (2) 'Coinbase'
+	if cap(e.Coinbase) == 0 {
+		e.Coinbase = make([]byte, 0, len(buf[64:84]))
+	}
+	e.Coinbase = append(e.Coinbase, buf[64:84]...)
+
+	// Field (3) 'StateRoot'
+	if cap(e.StateRoot) == 0 {
+		e.StateRoot = make([]byte, 0, len(buf[84:116]))
+	}
+	e.StateRoot = append(e.StateRoot, buf[84:116]...)
+
+	// Field (4) 'Number'
+	e.Number = ssz.UnmarshallUint64(buf[116:124])
+
+	// Field (5) 'GasLimit'
+	e.GasLimit = ssz.UnmarshallUint64(buf[124:132])
+
+	// Field (6) 'GasUsed'
+	e.GasUsed = ssz.UnmarshallUint64(buf[132:140])
+
+	// Field (7) 'Timestamp'
+	e.Timestamp = ssz.UnmarshallUint64(buf[140:148])
+
+	// Field (8) 'ReceiptRoot'
+	if cap(e.ReceiptRoot) == 0 {
+		e.ReceiptRoot = make([]byte, 0, len(buf[148:180]))
+	}
+	e.ReceiptRoot = append(e.ReceiptRoot, buf[148:180]...)
+
+	// Field (9) 'LogsBloom'
+	if cap(e.LogsBloom) == 0 {
+		e.LogsBloom = make([]byte, 0, len(buf[180:436]))
+	}
+	e.LogsBloom = append(e.LogsBloom, buf[180:436]...)
+
+	// Field (10) 'TransactionsRoot'
+	if cap(e.TransactionsRoot) == 0 {
+		e.TransactionsRoot = make([]byte, 0, len(buf[436:468]))
+	}
+	e.TransactionsRoot = append(e.TransactionsRoot, buf[436:468]...)
+
+	return err
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the ExecutionPayloadHeader object
+func (e *ExecutionPayloadHeader) SizeSSZ() (size int) {
+	size = 468
+	return
+}
+
+// HashTreeRoot ssz hashes the ExecutionPayloadHeader object
+func (e *ExecutionPayloadHeader) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(e)
+}
+
+// HashTreeRootWith ssz hashes the ExecutionPayloadHeader object with a hasher
+func (e *ExecutionPayloadHeader) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+	indx := hh.Index()
+
+	// Field (0) 'BlockHash'
+	if len(e.BlockHash) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.BlockHash)
+
+	// Field (1) 'ParentHash'
+	if len(e.ParentHash) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.ParentHash)
+
+	// Field (2) 'Coinbase'
+	if len(e.Coinbase) != 20 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.Coinbase)
+
+	// Field (3) 'StateRoot'
+	if len(e.StateRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.StateRoot)
+
+	// Field (4) 'Number'
+	hh.PutUint64(e.Number)
+
+	// Field (5) 'GasLimit'
+	hh.PutUint64(e.GasLimit)
+
+	// Field (6) 'GasUsed'
+	hh.PutUint64(e.GasUsed)
+
+	// Field (7) 'Timestamp'
+	hh.PutUint64(e.Timestamp)
+
+	// Field (8) 'ReceiptRoot'
+	if len(e.ReceiptRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.ReceiptRoot)
+
+	// Field (9) 'LogsBloom'
+	if len(e.LogsBloom) != 256 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.LogsBloom)
+
+	// Field (10) 'TransactionsRoot'
+	if len(e.TransactionsRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.TransactionsRoot)
+
+	hh.Merkleize(indx)
+	return
+}
+
+// MarshalSSZ ssz marshals the PendingShardHeader object
+func (p *PendingShardHeader) MarshalSSZ() ([]byte, error) {
+	return ssz.MarshalSSZ(p)
+}
+
+// MarshalSSZTo ssz marshals the PendingShardHeader object to a target array
+func (p *PendingShardHeader) MarshalSSZTo(buf []byte) (dst []byte, err error) {
+	dst = buf
+	offset := int(108)
+
+	// Field (0) 'Commitment'
+	if p.Commitment == nil {
+		p.Commitment = new(v1alpha1.DataCommitment)
+	}
+	if dst, err = p.Commitment.MarshalSSZTo(dst); err != nil {
+		return
+	}
+
+	// Field (1) 'Root'
+	if len(p.Root) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, p.Root...)
+
+	// Offset (2) 'Votes'
+	dst = ssz.WriteOffset(dst, offset)
+	offset += len(p.Votes)
+
+	// Field (3) 'Weight'
+	dst = ssz.MarshalUint64(dst, p.Weight)
+
+	// Field (4) 'UpdatedSlot'
+	dst = ssz.MarshalUint64(dst, uint64(p.UpdatedSlot))
+
+	// Field (2) 'Votes'
+	if len(p.Votes) > 2048 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, p.Votes...)
+
+	return
+}
+
+// UnmarshalSSZ ssz unmarshals the PendingShardHeader object
+func (p *PendingShardHeader) UnmarshalSSZ(buf []byte) error {
+	var err error
+	size := uint64(len(buf))
+	if size < 108 {
+		return ssz.ErrSize
+	}
+
+	tail := buf
+	var o2 uint64
+
+	// Field (0) 'Commitment'
+	if p.Commitment == nil {
+		p.Commitment = new(v1alpha1.DataCommitment)
+	}
+	if err = p.Commitment.UnmarshalSSZ(buf[0:56]); err != nil {
+		return err
+	}
+
+	// Field (1) 'Root'
+	if cap(p.Root) == 0 {
+		p.Root = make([]byte, 0, len(buf[56:88]))
+	}
+	p.Root = append(p.Root, buf[56:88]...)
+
+	// Offset (2) 'Votes'
+	if o2 = ssz.ReadOffset(buf[88:92]); o2 > size {
+		return ssz.ErrOffset
+	}
+
+	// Field (3) 'Weight'
+	p.Weight = ssz.UnmarshallUint64(buf[92:100])
+
+	// Field (4) 'UpdatedSlot'
+	p.UpdatedSlot = github_com_prysmaticlabs_eth2_types.Slot(ssz.UnmarshallUint64(buf[100:108]))
+
+	// Field (2) 'Votes'
+	{
+		buf = tail[o2:]
+		if err = ssz.ValidateBitlist(buf, 2048); err != nil {
+			return err
+		}
+		if cap(p.Votes) == 0 {
+			p.Votes = make([]byte, 0, len(buf))
+		}
+		p.Votes = append(p.Votes, buf...)
+	}
+	return err
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the PendingShardHeader object
+func (p *PendingShardHeader) SizeSSZ() (size int) {
+	size = 108
+
+	// Field (2) 'Votes'
+	size += len(p.Votes)
+
+	return
+}
+
+// HashTreeRoot ssz hashes the PendingShardHeader object
+func (p *PendingShardHeader) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(p)
+}
+
+// HashTreeRootWith ssz hashes the PendingShardHeader object with a hasher
+func (p *PendingShardHeader) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+	indx := hh.Index()
+
+	// Field (0) 'Commitment'
+	if err = p.Commitment.HashTreeRootWith(hh); err != nil {
+		return
+	}
+
+	// Field (1) 'Root'
+	if len(p.Root) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(p.Root)
+
+	// Field (2) 'Votes'
+	if len(p.Votes) == 0 {
+		err = ssz.ErrEmptyBitlist
+		return
+	}
+	hh.PutBitlist(p.Votes, 2048)
+
+	// Field (3) 'Weight'
+	hh.PutUint64(p.Weight)
+
+	// Field (4) 'UpdatedSlot'
+	hh.PutUint64(uint64(p.UpdatedSlot))
+
+	hh.Merkleize(indx)
+	return
+}
+
+// MarshalSSZ ssz marshals the EpochDataCommitments object
+func (e *EpochDataCommitments) MarshalSSZ() ([]byte, error) {
+	return ssz.MarshalSSZ(e)
+}
+
+// MarshalSSZTo ssz marshals the EpochDataCommitments object to a target array
+func (e *EpochDataCommitments) MarshalSSZTo(buf []byte) (dst []byte, err error) {
+	dst = buf
+	offset := int(4)
+
+	// Offset (0) 'DataCommitments'
+	dst = ssz.WriteOffset(dst, offset)
+	offset += len(e.DataCommitments) * 56
+
+	// Field (0) 'DataCommitments'
+	if len(e.DataCommitments) > 32 {
+		err = ssz.ErrListTooBig
+		return
+	}
+	for ii := 0; ii < len(e.DataCommitments); ii++ {
+		if dst, err = e.DataCommitments[ii].MarshalSSZTo(dst); err != nil {
+			return
+		}
+	}
+
+	return
+}
+
+// UnmarshalSSZ ssz unmarshals the EpochDataCommitments object
+func (e *EpochDataCommitments) UnmarshalSSZ(buf []byte) error {
+	var err error
+	size := uint64(len(buf))
+	if size < 4 {
+		return ssz.ErrSize
+	}
+
+	tail := buf
+	var o0 uint64
+
+	// Offset (0) 'DataCommitments'
+	if o0 = ssz.ReadOffset(buf[0:4]); o0 > size {
+		return ssz.ErrOffset
+	}
+
+	// Field (0) 'DataCommitments'
+	{
+		buf = tail[o0:]
+		num, err := ssz.DivideInt2(len(buf), 56, 32)
+		if err != nil {
+			return err
+		}
+		e.DataCommitments = make([]*v1alpha1.DataCommitment, num)
+		for ii := 0; ii < num; ii++ {
+			if e.DataCommitments[ii] == nil {
+				e.DataCommitments[ii] = new(v1alpha1.DataCommitment)
+			}
+			if err = e.DataCommitments[ii].UnmarshalSSZ(buf[ii*56 : (ii+1)*56]); err != nil {
+				return err
+			}
+		}
+	}
+	return err
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the EpochDataCommitments object
+func (e *EpochDataCommitments) SizeSSZ() (size int) {
+	size = 4
+
+	// Field (0) 'DataCommitments'
+	size += len(e.DataCommitments) * 56
+
+	return
+}
+
+// HashTreeRoot ssz hashes the EpochDataCommitments object
+func (e *EpochDataCommitments) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(e)
+}
+
+// HashTreeRootWith ssz hashes the EpochDataCommitments object with a hasher
+func (e *EpochDataCommitments) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+	indx := hh.Index()
+
+	// Field (0) 'DataCommitments'
+	{
+		subIndx := hh.Index()
+		num := uint64(len(e.DataCommitments))
+		if num > 32 {
+			err = ssz.ErrIncorrectListSize
+			return
+		}
+		for i := uint64(0); i < num; i++ {
+			if err = e.DataCommitments[i].HashTreeRootWith(hh); err != nil {
+				return
+			}
+		}
+		hh.MerkleizeWithMixin(subIndx, num, 32)
+	}
 
 	hh.Merkleize(indx)
 	return

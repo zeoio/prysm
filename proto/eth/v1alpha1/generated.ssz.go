@@ -14,7 +14,7 @@ func (a *Attestation) MarshalSSZ() ([]byte, error) {
 // MarshalSSZTo ssz marshals the Attestation object to a target array
 func (a *Attestation) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	dst = buf
-	offset := int(228)
+	offset := int(260)
 
 	// Offset (0) 'AggregationBits'
 	dst = ssz.WriteOffset(dst, offset)
@@ -49,7 +49,7 @@ func (a *Attestation) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 func (a *Attestation) UnmarshalSSZ(buf []byte) error {
 	var err error
 	size := uint64(len(buf))
-	if size < 228 {
+	if size < 260 {
 		return ssz.ErrSize
 	}
 
@@ -65,15 +65,15 @@ func (a *Attestation) UnmarshalSSZ(buf []byte) error {
 	if a.Data == nil {
 		a.Data = new(AttestationData)
 	}
-	if err = a.Data.UnmarshalSSZ(buf[4:132]); err != nil {
+	if err = a.Data.UnmarshalSSZ(buf[4:164]); err != nil {
 		return err
 	}
 
 	// Field (2) 'Signature'
 	if cap(a.Signature) == 0 {
-		a.Signature = make([]byte, 0, len(buf[132:228]))
+		a.Signature = make([]byte, 0, len(buf[164:260]))
 	}
-	a.Signature = append(a.Signature, buf[132:228]...)
+	a.Signature = append(a.Signature, buf[164:260]...)
 
 	// Field (0) 'AggregationBits'
 	{
@@ -91,7 +91,7 @@ func (a *Attestation) UnmarshalSSZ(buf []byte) error {
 
 // SizeSSZ returns the ssz encoded size in bytes for the Attestation object
 func (a *Attestation) SizeSSZ() (size int) {
-	size = 228
+	size = 260
 
 	// Field (0) 'AggregationBits'
 	size += len(a.AggregationBits)
@@ -388,6 +388,13 @@ func (a *AttestationData) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 		return
 	}
 
+	// Field (5) 'ShardHeaderRoot'
+	if len(a.ShardHeaderRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, a.ShardHeaderRoot...)
+
 	return
 }
 
@@ -395,7 +402,7 @@ func (a *AttestationData) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 func (a *AttestationData) UnmarshalSSZ(buf []byte) error {
 	var err error
 	size := uint64(len(buf))
-	if size != 128 {
+	if size != 160 {
 		return ssz.ErrSize
 	}
 
@@ -427,12 +434,18 @@ func (a *AttestationData) UnmarshalSSZ(buf []byte) error {
 		return err
 	}
 
+	// Field (5) 'ShardHeaderRoot'
+	if cap(a.ShardHeaderRoot) == 0 {
+		a.ShardHeaderRoot = make([]byte, 0, len(buf[128:160]))
+	}
+	a.ShardHeaderRoot = append(a.ShardHeaderRoot, buf[128:160]...)
+
 	return err
 }
 
 // SizeSSZ returns the ssz encoded size in bytes for the AttestationData object
 func (a *AttestationData) SizeSSZ() (size int) {
-	size = 128
+	size = 160
 	return
 }
 
@@ -467,6 +480,13 @@ func (a *AttestationData) HashTreeRootWith(hh *ssz.Hasher) (err error) {
 	if err = a.Target.HashTreeRootWith(hh); err != nil {
 		return
 	}
+
+	// Field (5) 'ShardHeaderRoot'
+	if len(a.ShardHeaderRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(a.ShardHeaderRoot)
 
 	hh.Merkleize(indx)
 	return
@@ -799,7 +819,7 @@ func (b *BeaconBlockBody) MarshalSSZ() ([]byte, error) {
 // MarshalSSZTo ssz marshals the BeaconBlockBody object to a target array
 func (b *BeaconBlockBody) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	dst = buf
-	offset := int(220)
+	offset := int(224)
 
 	// Field (0) 'RandaoReveal'
 	if len(b.RandaoReveal) != 96 {
@@ -848,6 +868,13 @@ func (b *BeaconBlockBody) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	// Offset (7) 'VoluntaryExits'
 	dst = ssz.WriteOffset(dst, offset)
 	offset += len(b.VoluntaryExits) * 112
+
+	// Offset (8) 'ExecutionPayload'
+	dst = ssz.WriteOffset(dst, offset)
+	if b.ExecutionPayload == nil {
+		b.ExecutionPayload = new(ExecutionPayload)
+	}
+	offset += b.ExecutionPayload.SizeSSZ()
 
 	// Field (3) 'ProposerSlashings'
 	if len(b.ProposerSlashings) > 16 {
@@ -918,6 +945,11 @@ func (b *BeaconBlockBody) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 		}
 	}
 
+	// Field (8) 'ExecutionPayload'
+	if dst, err = b.ExecutionPayload.MarshalSSZTo(dst); err != nil {
+		return
+	}
+
 	return
 }
 
@@ -925,12 +957,12 @@ func (b *BeaconBlockBody) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 func (b *BeaconBlockBody) UnmarshalSSZ(buf []byte) error {
 	var err error
 	size := uint64(len(buf))
-	if size < 220 {
+	if size < 224 {
 		return ssz.ErrSize
 	}
 
 	tail := buf
-	var o3, o4, o5, o6, o7 uint64
+	var o3, o4, o5, o6, o7, o8 uint64
 
 	// Field (0) 'RandaoReveal'
 	if cap(b.RandaoReveal) == 0 {
@@ -974,6 +1006,11 @@ func (b *BeaconBlockBody) UnmarshalSSZ(buf []byte) error {
 
 	// Offset (7) 'VoluntaryExits'
 	if o7 = ssz.ReadOffset(buf[216:220]); o7 > size || o6 > o7 {
+		return ssz.ErrOffset
+	}
+
+	// Offset (8) 'ExecutionPayload'
+	if o8 = ssz.ReadOffset(buf[220:224]); o8 > size || o7 > o8 {
 		return ssz.ErrOffset
 	}
 
@@ -1059,7 +1096,7 @@ func (b *BeaconBlockBody) UnmarshalSSZ(buf []byte) error {
 
 	// Field (7) 'VoluntaryExits'
 	{
-		buf = tail[o7:]
+		buf = tail[o7:o8]
 		num, err := ssz.DivideInt2(len(buf), 112, 16)
 		if err != nil {
 			return err
@@ -1074,12 +1111,23 @@ func (b *BeaconBlockBody) UnmarshalSSZ(buf []byte) error {
 			}
 		}
 	}
+
+	// Field (8) 'ExecutionPayload'
+	{
+		buf = tail[o8:]
+		if b.ExecutionPayload == nil {
+			b.ExecutionPayload = new(ExecutionPayload)
+		}
+		if err = b.ExecutionPayload.UnmarshalSSZ(buf); err != nil {
+			return err
+		}
+	}
 	return err
 }
 
 // SizeSSZ returns the ssz encoded size in bytes for the BeaconBlockBody object
 func (b *BeaconBlockBody) SizeSSZ() (size int) {
-	size = 220
+	size = 224
 
 	// Field (3) 'ProposerSlashings'
 	size += len(b.ProposerSlashings) * 416
@@ -1101,6 +1149,12 @@ func (b *BeaconBlockBody) SizeSSZ() (size int) {
 
 	// Field (7) 'VoluntaryExits'
 	size += len(b.VoluntaryExits) * 112
+
+	// Field (8) 'ExecutionPayload'
+	if b.ExecutionPayload == nil {
+		b.ExecutionPayload = new(ExecutionPayload)
+	}
+	size += b.ExecutionPayload.SizeSSZ()
 
 	return
 }
@@ -1211,6 +1265,11 @@ func (b *BeaconBlockBody) HashTreeRootWith(hh *ssz.Hasher) (err error) {
 			}
 		}
 		hh.MerkleizeWithMixin(subIndx, num, 16)
+	}
+
+	// Field (8) 'ExecutionPayload'
+	if err = b.ExecutionPayload.HashTreeRootWith(hh); err != nil {
+		return
 	}
 
 	hh.Merkleize(indx)
@@ -1972,7 +2031,7 @@ func (i *IndexedAttestation) MarshalSSZ() ([]byte, error) {
 // MarshalSSZTo ssz marshals the IndexedAttestation object to a target array
 func (i *IndexedAttestation) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	dst = buf
-	offset := int(228)
+	offset := int(260)
 
 	// Offset (0) 'AttestingIndices'
 	dst = ssz.WriteOffset(dst, offset)
@@ -2009,7 +2068,7 @@ func (i *IndexedAttestation) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 func (i *IndexedAttestation) UnmarshalSSZ(buf []byte) error {
 	var err error
 	size := uint64(len(buf))
-	if size < 228 {
+	if size < 260 {
 		return ssz.ErrSize
 	}
 
@@ -2025,15 +2084,15 @@ func (i *IndexedAttestation) UnmarshalSSZ(buf []byte) error {
 	if i.Data == nil {
 		i.Data = new(AttestationData)
 	}
-	if err = i.Data.UnmarshalSSZ(buf[4:132]); err != nil {
+	if err = i.Data.UnmarshalSSZ(buf[4:164]); err != nil {
 		return err
 	}
 
 	// Field (2) 'Signature'
 	if cap(i.Signature) == 0 {
-		i.Signature = make([]byte, 0, len(buf[132:228]))
+		i.Signature = make([]byte, 0, len(buf[164:260]))
 	}
-	i.Signature = append(i.Signature, buf[132:228]...)
+	i.Signature = append(i.Signature, buf[164:260]...)
 
 	// Field (0) 'AttestingIndices'
 	{
@@ -2052,7 +2111,7 @@ func (i *IndexedAttestation) UnmarshalSSZ(buf []byte) error {
 
 // SizeSSZ returns the ssz encoded size in bytes for the IndexedAttestation object
 func (i *IndexedAttestation) SizeSSZ() (size int) {
-	size = 228
+	size = 260
 
 	// Field (0) 'AttestingIndices'
 	size += len(i.AttestingIndices) * 8
@@ -2983,6 +3042,997 @@ func (s *SyncAggregate) HashTreeRootWith(hh *ssz.Hasher) (err error) {
 		return
 	}
 	hh.PutBytes(s.SyncCommitteeSignature)
+
+	hh.Merkleize(indx)
+	return
+}
+
+// MarshalSSZ ssz marshals the PowBlock object
+func (p *PowBlock) MarshalSSZ() ([]byte, error) {
+	return ssz.MarshalSSZ(p)
+}
+
+// MarshalSSZTo ssz marshals the PowBlock object to a target array
+func (p *PowBlock) MarshalSSZTo(buf []byte) (dst []byte, err error) {
+	dst = buf
+
+	// Field (0) 'BlockHash'
+	if len(p.BlockHash) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, p.BlockHash...)
+
+	// Field (1) 'IsProcessed'
+	dst = ssz.MarshalBool(dst, p.IsProcessed)
+
+	// Field (2) 'IsValid'
+	dst = ssz.MarshalBool(dst, p.IsValid)
+
+	// Field (3) 'TotalDifficulty'
+	dst = ssz.MarshalUint64(dst, p.TotalDifficulty)
+
+	return
+}
+
+// UnmarshalSSZ ssz unmarshals the PowBlock object
+func (p *PowBlock) UnmarshalSSZ(buf []byte) error {
+	var err error
+	size := uint64(len(buf))
+	if size != 42 {
+		return ssz.ErrSize
+	}
+
+	// Field (0) 'BlockHash'
+	if cap(p.BlockHash) == 0 {
+		p.BlockHash = make([]byte, 0, len(buf[0:32]))
+	}
+	p.BlockHash = append(p.BlockHash, buf[0:32]...)
+
+	// Field (1) 'IsProcessed'
+	p.IsProcessed = ssz.UnmarshalBool(buf[32:33])
+
+	// Field (2) 'IsValid'
+	p.IsValid = ssz.UnmarshalBool(buf[33:34])
+
+	// Field (3) 'TotalDifficulty'
+	p.TotalDifficulty = ssz.UnmarshallUint64(buf[34:42])
+
+	return err
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the PowBlock object
+func (p *PowBlock) SizeSSZ() (size int) {
+	size = 42
+	return
+}
+
+// HashTreeRoot ssz hashes the PowBlock object
+func (p *PowBlock) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(p)
+}
+
+// HashTreeRootWith ssz hashes the PowBlock object with a hasher
+func (p *PowBlock) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+	indx := hh.Index()
+
+	// Field (0) 'BlockHash'
+	if len(p.BlockHash) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(p.BlockHash)
+
+	// Field (1) 'IsProcessed'
+	hh.PutBool(p.IsProcessed)
+
+	// Field (2) 'IsValid'
+	hh.PutBool(p.IsValid)
+
+	// Field (3) 'TotalDifficulty'
+	hh.PutUint64(p.TotalDifficulty)
+
+	hh.Merkleize(indx)
+	return
+}
+
+// MarshalSSZ ssz marshals the ExecutionPayload object
+func (e *ExecutionPayload) MarshalSSZ() ([]byte, error) {
+	return ssz.MarshalSSZ(e)
+}
+
+// MarshalSSZTo ssz marshals the ExecutionPayload object to a target array
+func (e *ExecutionPayload) MarshalSSZTo(buf []byte) (dst []byte, err error) {
+	dst = buf
+	offset := int(440)
+
+	// Field (0) 'BlockHash'
+	if len(e.BlockHash) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.BlockHash...)
+
+	// Field (1) 'ParentHash'
+	if len(e.ParentHash) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.ParentHash...)
+
+	// Field (2) 'Coinbase'
+	if len(e.Coinbase) != 20 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.Coinbase...)
+
+	// Field (3) 'StateRoot'
+	if len(e.StateRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.StateRoot...)
+
+	// Field (4) 'Number'
+	dst = ssz.MarshalUint64(dst, e.Number)
+
+	// Field (5) 'GasLimit'
+	dst = ssz.MarshalUint64(dst, e.GasLimit)
+
+	// Field (6) 'GasUsed'
+	dst = ssz.MarshalUint64(dst, e.GasUsed)
+
+	// Field (7) 'Timestamp'
+	dst = ssz.MarshalUint64(dst, e.Timestamp)
+
+	// Field (8) 'ReceiptRoot'
+	if len(e.ReceiptRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.ReceiptRoot...)
+
+	// Field (9) 'LogsBloom'
+	if len(e.LogsBloom) != 256 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, e.LogsBloom...)
+
+	// Offset (10) 'Transactions'
+	dst = ssz.WriteOffset(dst, offset)
+	for ii := 0; ii < len(e.Transactions); ii++ {
+		offset += 4
+		offset += len(e.Transactions[ii])
+	}
+
+	// Field (10) 'Transactions'
+	if len(e.Transactions) > 16384 {
+		err = ssz.ErrListTooBig
+		return
+	}
+	{
+		offset = 4 * len(e.Transactions)
+		for ii := 0; ii < len(e.Transactions); ii++ {
+			dst = ssz.WriteOffset(dst, offset)
+			offset += len(e.Transactions[ii])
+		}
+	}
+	for ii := 0; ii < len(e.Transactions); ii++ {
+		if len(e.Transactions[ii]) > 1048576 {
+			err = ssz.ErrBytesLength
+			return
+		}
+		dst = append(dst, e.Transactions[ii]...)
+	}
+
+	return
+}
+
+// UnmarshalSSZ ssz unmarshals the ExecutionPayload object
+func (e *ExecutionPayload) UnmarshalSSZ(buf []byte) error {
+	var err error
+	size := uint64(len(buf))
+	if size < 440 {
+		return ssz.ErrSize
+	}
+
+	tail := buf
+	var o10 uint64
+
+	// Field (0) 'BlockHash'
+	if cap(e.BlockHash) == 0 {
+		e.BlockHash = make([]byte, 0, len(buf[0:32]))
+	}
+	e.BlockHash = append(e.BlockHash, buf[0:32]...)
+
+	// Field (1) 'ParentHash'
+	if cap(e.ParentHash) == 0 {
+		e.ParentHash = make([]byte, 0, len(buf[32:64]))
+	}
+	e.ParentHash = append(e.ParentHash, buf[32:64]...)
+
+	// Field (2) 'Coinbase'
+	if cap(e.Coinbase) == 0 {
+		e.Coinbase = make([]byte, 0, len(buf[64:84]))
+	}
+	e.Coinbase = append(e.Coinbase, buf[64:84]...)
+
+	// Field (3) 'StateRoot'
+	if cap(e.StateRoot) == 0 {
+		e.StateRoot = make([]byte, 0, len(buf[84:116]))
+	}
+	e.StateRoot = append(e.StateRoot, buf[84:116]...)
+
+	// Field (4) 'Number'
+	e.Number = ssz.UnmarshallUint64(buf[116:124])
+
+	// Field (5) 'GasLimit'
+	e.GasLimit = ssz.UnmarshallUint64(buf[124:132])
+
+	// Field (6) 'GasUsed'
+	e.GasUsed = ssz.UnmarshallUint64(buf[132:140])
+
+	// Field (7) 'Timestamp'
+	e.Timestamp = ssz.UnmarshallUint64(buf[140:148])
+
+	// Field (8) 'ReceiptRoot'
+	if cap(e.ReceiptRoot) == 0 {
+		e.ReceiptRoot = make([]byte, 0, len(buf[148:180]))
+	}
+	e.ReceiptRoot = append(e.ReceiptRoot, buf[148:180]...)
+
+	// Field (9) 'LogsBloom'
+	if cap(e.LogsBloom) == 0 {
+		e.LogsBloom = make([]byte, 0, len(buf[180:436]))
+	}
+	e.LogsBloom = append(e.LogsBloom, buf[180:436]...)
+
+	// Offset (10) 'Transactions'
+	if o10 = ssz.ReadOffset(buf[436:440]); o10 > size {
+		return ssz.ErrOffset
+	}
+
+	// Field (10) 'Transactions'
+	{
+		buf = tail[o10:]
+		num, err := ssz.DecodeDynamicLength(buf, 16384)
+		if err != nil {
+			return err
+		}
+		e.Transactions = make([][]byte, num)
+		err = ssz.UnmarshalDynamic(buf, num, func(indx int, buf []byte) (err error) {
+			if len(buf) > 1048576 {
+				return ssz.ErrBytesLength
+			}
+			if cap(e.Transactions[indx]) == 0 {
+				e.Transactions[indx] = make([]byte, 0, len(buf))
+			}
+			e.Transactions[indx] = append(e.Transactions[indx], buf...)
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return err
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the ExecutionPayload object
+func (e *ExecutionPayload) SizeSSZ() (size int) {
+	size = 440
+
+	// Field (10) 'Transactions'
+	for ii := 0; ii < len(e.Transactions); ii++ {
+		size += 4
+		size += len(e.Transactions[ii])
+	}
+
+	return
+}
+
+// HashTreeRoot ssz hashes the ExecutionPayload object
+func (e *ExecutionPayload) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(e)
+}
+
+// HashTreeRootWith ssz hashes the ExecutionPayload object with a hasher
+func (e *ExecutionPayload) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+	indx := hh.Index()
+
+	// Field (0) 'BlockHash'
+	if len(e.BlockHash) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.BlockHash)
+
+	// Field (1) 'ParentHash'
+	if len(e.ParentHash) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.ParentHash)
+
+	// Field (2) 'Coinbase'
+	if len(e.Coinbase) != 20 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.Coinbase)
+
+	// Field (3) 'StateRoot'
+	if len(e.StateRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.StateRoot)
+
+	// Field (4) 'Number'
+	hh.PutUint64(e.Number)
+
+	// Field (5) 'GasLimit'
+	hh.PutUint64(e.GasLimit)
+
+	// Field (6) 'GasUsed'
+	hh.PutUint64(e.GasUsed)
+
+	// Field (7) 'Timestamp'
+	hh.PutUint64(e.Timestamp)
+
+	// Field (8) 'ReceiptRoot'
+	if len(e.ReceiptRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.ReceiptRoot)
+
+	// Field (9) 'LogsBloom'
+	if len(e.LogsBloom) != 256 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(e.LogsBloom)
+
+	// Field (10) 'Transactions'
+	{
+		subIndx := hh.Index()
+		num := uint64(len(e.Transactions))
+		if num > 16384 {
+			err = ssz.ErrIncorrectListSize
+			return
+		}
+		for i := uint64(0); i < num; i++ {
+			txSubIndx := hh.Index()
+			hh.PutBytes(e.Transactions[i])
+			hh.MerkleizeWithMixin(txSubIndx, uint64(len(e.Transactions[i])), 1048576)
+		}
+		hh.MerkleizeWithMixin(subIndx, num, 16384)
+	}
+
+	hh.Merkleize(indx)
+	return
+}
+
+// MarshalSSZ ssz marshals the DataCommitment object
+func (d *DataCommitment) MarshalSSZ() ([]byte, error) {
+	return ssz.MarshalSSZ(d)
+}
+
+// MarshalSSZTo ssz marshals the DataCommitment object to a target array
+func (d *DataCommitment) MarshalSSZTo(buf []byte) (dst []byte, err error) {
+	dst = buf
+
+	// Field (0) 'Point'
+	if len(d.Point) != 48 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, d.Point...)
+
+	// Field (1) 'Length'
+	dst = ssz.MarshalUint64(dst, d.Length)
+
+	return
+}
+
+// UnmarshalSSZ ssz unmarshals the DataCommitment object
+func (d *DataCommitment) UnmarshalSSZ(buf []byte) error {
+	var err error
+	size := uint64(len(buf))
+	if size != 56 {
+		return ssz.ErrSize
+	}
+
+	// Field (0) 'Point'
+	if cap(d.Point) == 0 {
+		d.Point = make([]byte, 0, len(buf[0:48]))
+	}
+	d.Point = append(d.Point, buf[0:48]...)
+
+	// Field (1) 'Length'
+	d.Length = ssz.UnmarshallUint64(buf[48:56])
+
+	return err
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the DataCommitment object
+func (d *DataCommitment) SizeSSZ() (size int) {
+	size = 56
+	return
+}
+
+// HashTreeRoot ssz hashes the DataCommitment object
+func (d *DataCommitment) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(d)
+}
+
+// HashTreeRootWith ssz hashes the DataCommitment object with a hasher
+func (d *DataCommitment) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+	indx := hh.Index()
+
+	// Field (0) 'Point'
+	if len(d.Point) != 48 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(d.Point)
+
+	// Field (1) 'Length'
+	hh.PutUint64(d.Length)
+
+	hh.Merkleize(indx)
+	return
+}
+
+// MarshalSSZ ssz marshals the ShardBlobBodySummary object
+func (s *ShardBlobBodySummary) MarshalSSZ() ([]byte, error) {
+	return ssz.MarshalSSZ(s)
+}
+
+// MarshalSSZTo ssz marshals the ShardBlobBodySummary object to a target array
+func (s *ShardBlobBodySummary) MarshalSSZTo(buf []byte) (dst []byte, err error) {
+	dst = buf
+
+	// Field (0) 'Commitment'
+	if s.Commitment == nil {
+		s.Commitment = new(DataCommitment)
+	}
+	if dst, err = s.Commitment.MarshalSSZTo(dst); err != nil {
+		return
+	}
+
+	// Field (1) 'DegreeProof'
+	if len(s.DegreeProof) != 48 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, s.DegreeProof...)
+
+	// Field (2) 'DataRoot'
+	if len(s.DataRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, s.DataRoot...)
+
+	// Field (3) 'BeaconBlockRoot'
+	if len(s.BeaconBlockRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, s.BeaconBlockRoot...)
+
+	return
+}
+
+// UnmarshalSSZ ssz unmarshals the ShardBlobBodySummary object
+func (s *ShardBlobBodySummary) UnmarshalSSZ(buf []byte) error {
+	var err error
+	size := uint64(len(buf))
+	if size != 168 {
+		return ssz.ErrSize
+	}
+
+	// Field (0) 'Commitment'
+	if s.Commitment == nil {
+		s.Commitment = new(DataCommitment)
+	}
+	if err = s.Commitment.UnmarshalSSZ(buf[0:56]); err != nil {
+		return err
+	}
+
+	// Field (1) 'DegreeProof'
+	if cap(s.DegreeProof) == 0 {
+		s.DegreeProof = make([]byte, 0, len(buf[56:104]))
+	}
+	s.DegreeProof = append(s.DegreeProof, buf[56:104]...)
+
+	// Field (2) 'DataRoot'
+	if cap(s.DataRoot) == 0 {
+		s.DataRoot = make([]byte, 0, len(buf[104:136]))
+	}
+	s.DataRoot = append(s.DataRoot, buf[104:136]...)
+
+	// Field (3) 'BeaconBlockRoot'
+	if cap(s.BeaconBlockRoot) == 0 {
+		s.BeaconBlockRoot = make([]byte, 0, len(buf[136:168]))
+	}
+	s.BeaconBlockRoot = append(s.BeaconBlockRoot, buf[136:168]...)
+
+	return err
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the ShardBlobBodySummary object
+func (s *ShardBlobBodySummary) SizeSSZ() (size int) {
+	size = 168
+	return
+}
+
+// HashTreeRoot ssz hashes the ShardBlobBodySummary object
+func (s *ShardBlobBodySummary) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(s)
+}
+
+// HashTreeRootWith ssz hashes the ShardBlobBodySummary object with a hasher
+func (s *ShardBlobBodySummary) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+	indx := hh.Index()
+
+	// Field (0) 'Commitment'
+	if err = s.Commitment.HashTreeRootWith(hh); err != nil {
+		return
+	}
+
+	// Field (1) 'DegreeProof'
+	if len(s.DegreeProof) != 48 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(s.DegreeProof)
+
+	// Field (2) 'DataRoot'
+	if len(s.DataRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(s.DataRoot)
+
+	// Field (3) 'BeaconBlockRoot'
+	if len(s.BeaconBlockRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(s.BeaconBlockRoot)
+
+	hh.Merkleize(indx)
+	return
+}
+
+// MarshalSSZ ssz marshals the ShardBlobHeader object
+func (s *ShardBlobHeader) MarshalSSZ() ([]byte, error) {
+	return ssz.MarshalSSZ(s)
+}
+
+// MarshalSSZTo ssz marshals the ShardBlobHeader object to a target array
+func (s *ShardBlobHeader) MarshalSSZTo(buf []byte) (dst []byte, err error) {
+	dst = buf
+
+	// Field (0) 'Slot'
+	dst = ssz.MarshalUint64(dst, uint64(s.Slot))
+
+	// Field (1) 'Shard'
+	dst = ssz.MarshalUint64(dst, s.Shard)
+
+	// Field (2) 'BodySummary'
+	if s.BodySummary == nil {
+		s.BodySummary = new(ShardBlobBodySummary)
+	}
+	if dst, err = s.BodySummary.MarshalSSZTo(dst); err != nil {
+		return
+	}
+
+	// Field (3) 'ProposerIndex'
+	dst = ssz.MarshalUint64(dst, uint64(s.ProposerIndex))
+
+	return
+}
+
+// UnmarshalSSZ ssz unmarshals the ShardBlobHeader object
+func (s *ShardBlobHeader) UnmarshalSSZ(buf []byte) error {
+	var err error
+	size := uint64(len(buf))
+	if size != 192 {
+		return ssz.ErrSize
+	}
+
+	// Field (0) 'Slot'
+	s.Slot = github_com_prysmaticlabs_eth2_types.Slot(ssz.UnmarshallUint64(buf[0:8]))
+
+	// Field (1) 'Shard'
+	s.Shard = ssz.UnmarshallUint64(buf[8:16])
+
+	// Field (2) 'BodySummary'
+	if s.BodySummary == nil {
+		s.BodySummary = new(ShardBlobBodySummary)
+	}
+	if err = s.BodySummary.UnmarshalSSZ(buf[16:184]); err != nil {
+		return err
+	}
+
+	// Field (3) 'ProposerIndex'
+	s.ProposerIndex = github_com_prysmaticlabs_eth2_types.ValidatorIndex(ssz.UnmarshallUint64(buf[184:192]))
+
+	return err
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the ShardBlobHeader object
+func (s *ShardBlobHeader) SizeSSZ() (size int) {
+	size = 192
+	return
+}
+
+// HashTreeRoot ssz hashes the ShardBlobHeader object
+func (s *ShardBlobHeader) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(s)
+}
+
+// HashTreeRootWith ssz hashes the ShardBlobHeader object with a hasher
+func (s *ShardBlobHeader) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+	indx := hh.Index()
+
+	// Field (0) 'Slot'
+	hh.PutUint64(uint64(s.Slot))
+
+	// Field (1) 'Shard'
+	hh.PutUint64(s.Shard)
+
+	// Field (2) 'BodySummary'
+	if err = s.BodySummary.HashTreeRootWith(hh); err != nil {
+		return
+	}
+
+	// Field (3) 'ProposerIndex'
+	hh.PutUint64(uint64(s.ProposerIndex))
+
+	hh.Merkleize(indx)
+	return
+}
+
+// MarshalSSZ ssz marshals the SignedShardBlobHeader object
+func (s *SignedShardBlobHeader) MarshalSSZ() ([]byte, error) {
+	return ssz.MarshalSSZ(s)
+}
+
+// MarshalSSZTo ssz marshals the SignedShardBlobHeader object to a target array
+func (s *SignedShardBlobHeader) MarshalSSZTo(buf []byte) (dst []byte, err error) {
+	dst = buf
+
+	// Field (0) 'Message'
+	if s.Message == nil {
+		s.Message = new(ShardBlobHeader)
+	}
+	if dst, err = s.Message.MarshalSSZTo(dst); err != nil {
+		return
+	}
+
+	// Field (1) 'Signature'
+	if len(s.Signature) != 96 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, s.Signature...)
+
+	return
+}
+
+// UnmarshalSSZ ssz unmarshals the SignedShardBlobHeader object
+func (s *SignedShardBlobHeader) UnmarshalSSZ(buf []byte) error {
+	var err error
+	size := uint64(len(buf))
+	if size != 288 {
+		return ssz.ErrSize
+	}
+
+	// Field (0) 'Message'
+	if s.Message == nil {
+		s.Message = new(ShardBlobHeader)
+	}
+	if err = s.Message.UnmarshalSSZ(buf[0:192]); err != nil {
+		return err
+	}
+
+	// Field (1) 'Signature'
+	if cap(s.Signature) == 0 {
+		s.Signature = make([]byte, 0, len(buf[192:288]))
+	}
+	s.Signature = append(s.Signature, buf[192:288]...)
+
+	return err
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the SignedShardBlobHeader object
+func (s *SignedShardBlobHeader) SizeSSZ() (size int) {
+	size = 288
+	return
+}
+
+// HashTreeRoot ssz hashes the SignedShardBlobHeader object
+func (s *SignedShardBlobHeader) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(s)
+}
+
+// HashTreeRootWith ssz hashes the SignedShardBlobHeader object with a hasher
+func (s *SignedShardBlobHeader) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+	indx := hh.Index()
+
+	// Field (0) 'Message'
+	if err = s.Message.HashTreeRootWith(hh); err != nil {
+		return
+	}
+
+	// Field (1) 'Signature'
+	if len(s.Signature) != 96 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(s.Signature)
+
+	hh.Merkleize(indx)
+	return
+}
+
+// MarshalSSZ ssz marshals the ShardBlobReference object
+func (s *ShardBlobReference) MarshalSSZ() ([]byte, error) {
+	return ssz.MarshalSSZ(s)
+}
+
+// MarshalSSZTo ssz marshals the ShardBlobReference object to a target array
+func (s *ShardBlobReference) MarshalSSZTo(buf []byte) (dst []byte, err error) {
+	dst = buf
+
+	// Field (0) 'Slot'
+	dst = ssz.MarshalUint64(dst, uint64(s.Slot))
+
+	// Field (1) 'Shard'
+	dst = ssz.MarshalUint64(dst, s.Shard)
+
+	// Field (2) 'BodyRoot'
+	if len(s.BodyRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, s.BodyRoot...)
+
+	// Field (3) 'ProposerIndex'
+	dst = ssz.MarshalUint64(dst, uint64(s.ProposerIndex))
+
+	return
+}
+
+// UnmarshalSSZ ssz unmarshals the ShardBlobReference object
+func (s *ShardBlobReference) UnmarshalSSZ(buf []byte) error {
+	var err error
+	size := uint64(len(buf))
+	if size != 56 {
+		return ssz.ErrSize
+	}
+
+	// Field (0) 'Slot'
+	s.Slot = github_com_prysmaticlabs_eth2_types.Slot(ssz.UnmarshallUint64(buf[0:8]))
+
+	// Field (1) 'Shard'
+	s.Shard = ssz.UnmarshallUint64(buf[8:16])
+
+	// Field (2) 'BodyRoot'
+	if cap(s.BodyRoot) == 0 {
+		s.BodyRoot = make([]byte, 0, len(buf[16:48]))
+	}
+	s.BodyRoot = append(s.BodyRoot, buf[16:48]...)
+
+	// Field (3) 'ProposerIndex'
+	s.ProposerIndex = github_com_prysmaticlabs_eth2_types.ValidatorIndex(ssz.UnmarshallUint64(buf[48:56]))
+
+	return err
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the ShardBlobReference object
+func (s *ShardBlobReference) SizeSSZ() (size int) {
+	size = 56
+	return
+}
+
+// HashTreeRoot ssz hashes the ShardBlobReference object
+func (s *ShardBlobReference) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(s)
+}
+
+// HashTreeRootWith ssz hashes the ShardBlobReference object with a hasher
+func (s *ShardBlobReference) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+	indx := hh.Index()
+
+	// Field (0) 'Slot'
+	hh.PutUint64(uint64(s.Slot))
+
+	// Field (1) 'Shard'
+	hh.PutUint64(s.Shard)
+
+	// Field (2) 'BodyRoot'
+	if len(s.BodyRoot) != 32 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(s.BodyRoot)
+
+	// Field (3) 'ProposerIndex'
+	hh.PutUint64(uint64(s.ProposerIndex))
+
+	hh.Merkleize(indx)
+	return
+}
+
+// MarshalSSZ ssz marshals the SignedShardBlobReference object
+func (s *SignedShardBlobReference) MarshalSSZ() ([]byte, error) {
+	return ssz.MarshalSSZ(s)
+}
+
+// MarshalSSZTo ssz marshals the SignedShardBlobReference object to a target array
+func (s *SignedShardBlobReference) MarshalSSZTo(buf []byte) (dst []byte, err error) {
+	dst = buf
+
+	// Field (0) 'Message'
+	if s.Message == nil {
+		s.Message = new(ShardBlobReference)
+	}
+	if dst, err = s.Message.MarshalSSZTo(dst); err != nil {
+		return
+	}
+
+	// Field (1) 'Signature'
+	if len(s.Signature) != 96 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	dst = append(dst, s.Signature...)
+
+	return
+}
+
+// UnmarshalSSZ ssz unmarshals the SignedShardBlobReference object
+func (s *SignedShardBlobReference) UnmarshalSSZ(buf []byte) error {
+	var err error
+	size := uint64(len(buf))
+	if size != 152 {
+		return ssz.ErrSize
+	}
+
+	// Field (0) 'Message'
+	if s.Message == nil {
+		s.Message = new(ShardBlobReference)
+	}
+	if err = s.Message.UnmarshalSSZ(buf[0:56]); err != nil {
+		return err
+	}
+
+	// Field (1) 'Signature'
+	if cap(s.Signature) == 0 {
+		s.Signature = make([]byte, 0, len(buf[56:152]))
+	}
+	s.Signature = append(s.Signature, buf[56:152]...)
+
+	return err
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the SignedShardBlobReference object
+func (s *SignedShardBlobReference) SizeSSZ() (size int) {
+	size = 152
+	return
+}
+
+// HashTreeRoot ssz hashes the SignedShardBlobReference object
+func (s *SignedShardBlobReference) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(s)
+}
+
+// HashTreeRootWith ssz hashes the SignedShardBlobReference object with a hasher
+func (s *SignedShardBlobReference) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+	indx := hh.Index()
+
+	// Field (0) 'Message'
+	if err = s.Message.HashTreeRootWith(hh); err != nil {
+		return
+	}
+
+	// Field (1) 'Signature'
+	if len(s.Signature) != 96 {
+		err = ssz.ErrBytesLength
+		return
+	}
+	hh.PutBytes(s.Signature)
+
+	hh.Merkleize(indx)
+	return
+}
+
+// MarshalSSZ ssz marshals the ShardProposerSlashing object
+func (s *ShardProposerSlashing) MarshalSSZ() ([]byte, error) {
+	return ssz.MarshalSSZ(s)
+}
+
+// MarshalSSZTo ssz marshals the ShardProposerSlashing object to a target array
+func (s *ShardProposerSlashing) MarshalSSZTo(buf []byte) (dst []byte, err error) {
+	dst = buf
+
+	// Field (0) 'SignedReference_1'
+	if s.SignedReference_1 == nil {
+		s.SignedReference_1 = new(SignedShardBlobReference)
+	}
+	if dst, err = s.SignedReference_1.MarshalSSZTo(dst); err != nil {
+		return
+	}
+
+	// Field (1) 'SignedReference_2'
+	if s.SignedReference_2 == nil {
+		s.SignedReference_2 = new(SignedShardBlobReference)
+	}
+	if dst, err = s.SignedReference_2.MarshalSSZTo(dst); err != nil {
+		return
+	}
+
+	return
+}
+
+// UnmarshalSSZ ssz unmarshals the ShardProposerSlashing object
+func (s *ShardProposerSlashing) UnmarshalSSZ(buf []byte) error {
+	var err error
+	size := uint64(len(buf))
+	if size != 304 {
+		return ssz.ErrSize
+	}
+
+	// Field (0) 'SignedReference_1'
+	if s.SignedReference_1 == nil {
+		s.SignedReference_1 = new(SignedShardBlobReference)
+	}
+	if err = s.SignedReference_1.UnmarshalSSZ(buf[0:152]); err != nil {
+		return err
+	}
+
+	// Field (1) 'SignedReference_2'
+	if s.SignedReference_2 == nil {
+		s.SignedReference_2 = new(SignedShardBlobReference)
+	}
+	if err = s.SignedReference_2.UnmarshalSSZ(buf[152:304]); err != nil {
+		return err
+	}
+
+	return err
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the ShardProposerSlashing object
+func (s *ShardProposerSlashing) SizeSSZ() (size int) {
+	size = 304
+	return
+}
+
+// HashTreeRoot ssz hashes the ShardProposerSlashing object
+func (s *ShardProposerSlashing) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(s)
+}
+
+// HashTreeRootWith ssz hashes the ShardProposerSlashing object with a hasher
+func (s *ShardProposerSlashing) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+	indx := hh.Index()
+
+	// Field (0) 'SignedReference_1'
+	if err = s.SignedReference_1.HashTreeRootWith(hh); err != nil {
+		return
+	}
+
+	// Field (1) 'SignedReference_2'
+	if err = s.SignedReference_2.HashTreeRootWith(hh); err != nil {
+		return
+	}
 
 	hh.Merkleize(indx)
 	return
