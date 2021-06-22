@@ -12,8 +12,6 @@ import (
 	"container/heap"
 	"errors"
 	"sync"
-
-	"github.com/mitchellh/copystructure"
 )
 
 // ErrEmpty is returned for queues with no items
@@ -119,19 +117,9 @@ func (pq *PriorityQueue) Push(i *Item) error {
 	if _, ok := pq.dataMap[i.Key]; ok {
 		return ErrDuplicateItem
 	}
-	// Copy the item value(s) so that modifications to the source item does not
-	// affect the item on the queue
-	clone, err := copystructure.Copy(i)
-	if err != nil {
-		return err
-	}
 
-	var ok bool
-	pq.dataMap[i.Key], ok = clone.(*Item)
-	if !ok {
-		return errors.New("unknown type")
-	}
-	heap.Push(&pq.data, clone)
+	pq.dataMap[i.Key] = i
+	heap.Push(&pq.data, i)
 	return nil
 }
 

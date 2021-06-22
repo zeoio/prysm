@@ -2,7 +2,6 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -141,7 +140,6 @@ func (c *SkipSlotCache) Put(_ context.Context, r [32]byte, state iface.BeaconSta
 	if c.disabled {
 		return nil
 	}
-	fmt.Println("Writing to skip slot state")
 	// Copy state so cached value is not mutated.
 	c.cache.Add(r, state.Copy())
 
