@@ -306,8 +306,9 @@ func ProcessSlots(ctx context.Context, state iface.BeaconState, slot types.Slot)
 			if err != nil {
 				return nil, err
 			}
-			log.Info("Finishing upgrade")
-			log.Info(state.Version())
+			if err := helpers.UpdateSyncCommitteeCache(state); err != nil {
+				return nil, err
+			}
 		}
 	}
 
