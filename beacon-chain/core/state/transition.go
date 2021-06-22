@@ -276,12 +276,14 @@ func ProcessSlots(ctx context.Context, state iface.BeaconState, slot types.Slot)
 		if CanProcessEpoch(state) {
 			switch state.Version() {
 			case version.Phase0:
+				fmt.Println("processing phase 0 epoch")
 				state, err = ProcessEpochPrecompute(ctx, state)
 				if err != nil {
 					traceutil.AnnotateError(span, err)
 					return nil, errors.Wrap(err, "could not process epoch with optimizations")
 				}
 			case version.Altair:
+				fmt.Println("processing altair epoch")
 				state, err = altair.ProcessEpoch(ctx, state)
 				if err != nil {
 					traceutil.AnnotateError(span, err)
@@ -298,10 +300,14 @@ func ProcessSlots(ctx context.Context, state iface.BeaconState, slot types.Slot)
 
 		// Transition to Altair state.
 		if helpers.IsEpochStart(state.Slot()) && helpers.SlotToEpoch(state.Slot()) == params.BeaconConfig().AltairForkEpoch {
+			log.Info("Starting upgrade")
+			log.Info(state.Version())
 			state, err = altair.UpgradeToAltair(state)
 			if err != nil {
 				return nil, err
 			}
+			log.Info("Finishing upgrade")
+			log.Info(state.Version())
 		}
 	}
 

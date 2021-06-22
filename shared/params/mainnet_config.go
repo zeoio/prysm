@@ -1,7 +1,6 @@
 package params
 
 import (
-	"math"
 	"time"
 
 	types "github.com/prysmaticlabs/eth2-types"
@@ -22,7 +21,7 @@ const (
 	// Genesis Fork Epoch for the mainnet config.
 	genesisForkEpoch = 0
 	// Altair Fork Epoch for mainnet config.
-	altairForkEpoch = math.MaxUint64
+	altairForkEpoch = 1
 )
 
 var mainnetNetworkConfig = &NetworkConfig{
@@ -95,8 +94,8 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 
 	// Time parameter constants.
 	MinAttestationInclusionDelay:     1,
-	SecondsPerSlot:                   12,
-	SlotsPerEpoch:                    32,
+	SecondsPerSlot:                   6,
+	SlotsPerEpoch:                    16,
 	MinSeedLookahead:                 1,
 	MaxSeedLookahead:                 4,
 	EpochsPerEth1VotingPeriod:        64,
