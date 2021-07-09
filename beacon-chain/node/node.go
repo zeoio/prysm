@@ -492,6 +492,7 @@ func (b *BeaconNode) registerBlockchainService() error {
 		AttService:              attService,
 		StateGen:                b.stateGen,
 		SlasherAttestationsFeed: b.slasherAttestationsFeed,
+		SlasherBlockHeadersFeed: b.slasherBlockHeadersFeed,
 		WeakSubjectivityCheckpt: wsCheckpt,
 	})
 	if err != nil {

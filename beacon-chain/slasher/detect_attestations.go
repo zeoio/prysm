@@ -3,6 +3,7 @@ package slasher
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
@@ -31,8 +32,11 @@ func (s *Service) checkSlashableAttestations(
 	slashings := make([]*ethpb.AttesterSlashing, 0)
 	indices := make([]types.ValidatorIndex, 0)
 
+	start := time.Now()
 	// TODO(#8331): Consider using goroutines and wait groups here.
 	groupedAtts := s.groupByValidatorChunkIndex(atts)
+	log.Info("Done grouping", time.Since(start))
+	start = time.Now()
 	for validatorChunkIdx, batch := range groupedAtts {
 		attSlashings, err := s.detectAllAttesterSlashings(ctx, &chunkUpdateArgs{
 			validatorChunkIndex: validatorChunkIdx,
@@ -45,9 +49,12 @@ func (s *Service) checkSlashableAttestations(
 		}
 		indices = append(indices, s.params.validatorIndicesInChunk(validatorChunkIdx)...)
 	}
+	log.Info("Done detecting", time.Since(start))
+	start = time.Now()
 	if err := s.serviceCfg.Database.SaveLastEpochWrittenForValidators(ctx, indices, currentEpoch); err != nil {
 		return nil, err
 	}
+	log.Info("Done saving last epoch written for validators", time.Since(start))
 	return slashings, nil
 }
 
@@ -68,10 +75,10 @@ func (s *Service) detectAllAttesterSlashings(
 	attestations []*slashertypes.IndexedAttestationWrapper,
 ) ([]*ethpb.AttesterSlashing, error) {
 	// Check for double votes.
-	doubleVoteSlashings, err := s.checkDoubleVotes(ctx, attestations)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not check slashable double votes")
-	}
+	// doubleVoteSlashings, err := s.checkDoubleVotes(ctx, attestations)
+	// if err != nil {
+	// 	return nil, errors.Wrap(err, "could not check slashable double votes")
+	// }
 
 	// Group attestations by chunk index.
 	groupedAtts := s.groupByChunkIndex(attestations)
@@ -105,7 +112,7 @@ func (s *Service) detectAllAttesterSlashings(
 
 	// Consolidate all slashings into a slice.
 	slashings := make([]*ethpb.AttesterSlashing, 0)
-	slashings = append(slashings, doubleVoteSlashings...)
+	// slashings = append(slashings, doubleVoteSlashings...)
 	slashings = append(slashings, surroundingSlashings...)
 	slashings = append(slashings, surroundedSlashings...)
 	if len(slashings) > 0 {

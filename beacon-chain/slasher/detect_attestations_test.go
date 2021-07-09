@@ -795,7 +795,7 @@ func TestService_processQueuedAttestations(t *testing.T) {
 	tickerChan <- 1
 	cancel()
 	<-exitChan
-	assert.LogsContain(t, hook, "New slot, processing queued")
+	assert.LogsContain(t, hook, "Processing queued")
 }
 
 func createAttestationWrapper(t *testing.T, source, target types.Epoch, indices []uint64, signingRoot []byte) *slashertypes.IndexedAttestationWrapper {

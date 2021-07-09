@@ -84,6 +84,7 @@ type Config struct {
 	AttService              *attestations.Service
 	StateGen                *stategen.State
 	SlasherAttestationsFeed *event.Feed
+	SlasherBlockHeadersFeed *event.Feed
 	WeakSubjectivityCheckpt *ethpb.Checkpoint
 }
 

@@ -16,6 +16,7 @@ import (
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/interfaces"
 	"github.com/prysmaticlabs/prysm/shared/attestationutil"
+	"github.com/prysmaticlabs/prysm/shared/blockutil"
 	"github.com/prysmaticlabs/prysm/shared/bls"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/featureconfig"
@@ -222,8 +223,11 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	return s.handleEpochBoundary(ctx, postState)
 }
 
-func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeaconBlock,
-	blockRoots [][32]byte) ([]*ethpb.Checkpoint, []*ethpb.Checkpoint, error) {
+func (s *Service) onBlockBatch(
+	ctx context.Context,
+	blks []interfaces.SignedBeaconBlock,
+	blockRoots [][32]byte,
+) ([]*ethpb.Checkpoint, []*ethpb.Checkpoint, error) {
 	ctx, span := trace.StartSpan(ctx, "blockChain.onBlockBatch")
 	defer span.End()
 
@@ -271,6 +275,38 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 		jCheckpoints[i] = preState.CurrentJustifiedCheckpoint()
 		fCheckpoints[i] = preState.FinalizedCheckpoint()
 		sigSet.Join(set)
+
+		// If slasher is configured, forward the attestations in the block via
+		// an event feed for processing.
+		if featureconfig.Get().EnableSlasher {
+			// Feed the indexed attestation to slasher if enabled. This action
+			// is done in the background to avoid adding more load to this critical code path.
+			go func() {
+				blockHeader, err := blockutil.SignedBeaconBlockHeaderFromBlock(b)
+				if err != nil {
+					log.WithError(err).WithField("blockSlot", b.Block().Slot()).Warn("Could not extract block header")
+					return
+				}
+				s.cfg.SlasherBlockHeadersFeed.Send(blockHeader)
+				for _, att := range b.Block().Body().Attestations() {
+					committee, err := helpers.BeaconCommitteeFromState(preState, att.Data.Slot, att.Data.CommitteeIndex)
+					if err != nil {
+						log.WithError(err).Error("Could not get attestation committee")
+						traceutil.AnnotateError(span, err)
+						return
+					}
+					// Using a different context to prevent timeouts as this operation can be expensive
+					// and we want to avoid affecting the critical code path.
+					indexedAtt, err := attestationutil.ConvertToIndexed(context.TODO(), att, committee)
+					if err != nil {
+						log.WithError(err).Error("Could not convert to indexed attestation")
+						traceutil.AnnotateError(span, err)
+						return
+					}
+					s.cfg.SlasherAttestationsFeed.Send(indexedAtt)
+				}
+			}()
+		}
 	}
 	verify, err := sigSet.Verify()
 	if err != nil {

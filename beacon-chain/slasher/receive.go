@@ -76,7 +76,8 @@ func (s *Service) receiveBlocks(ctx context.Context) {
 func (s *Service) processQueuedAttestations(ctx context.Context, slotTicker <-chan types.Slot) {
 	for {
 		select {
-		case currentSlot := <-slotTicker:
+		case <-slotTicker:
+			currentSlot := s.serviceCfg.HeadStateFetcher.HeadSlot()
 			attestations := s.attsQueue.dequeue()
 			currentEpoch := helpers.SlotToEpoch(currentSlot)
 			// We take all the attestations in the queue and filter out
@@ -95,9 +96,11 @@ func (s *Service) processQueuedAttestations(ctx context.Context, slotTicker <-ch
 				"numValidAtts":    len(validAtts),
 				"numDeferredAtts": len(validInFuture),
 				"numDroppedAtts":  numDropped,
-			}).Info("New slot, processing queued atts for slashing detection")
+			}).Info("Processing queued atts for slashing detection")
 
 			start := time.Now()
+
+			log.Info("Saving att records to disk")
 			// Save the attestation records to our database.
 			if err := s.serviceCfg.Database.SaveAttestationRecordsForValidators(
 				ctx, validAtts,
@@ -105,13 +108,17 @@ func (s *Service) processQueuedAttestations(ctx context.Context, slotTicker <-ch
 				log.WithError(err).Error("Could not save attestation records to DB")
 				continue
 			}
+			log.Info("Done saving", time.Since(start))
 
+			start = time.Now()
+			log.Info("Checking slashable")
 			// Check for slashings.
 			slashings, err := s.checkSlashableAttestations(ctx, validAtts)
 			if err != nil {
 				log.WithError(err).Error("Could not check slashable attestations")
 				continue
 			}
+			log.Info("Done checking", time.Since(start))
 
 			// Process attester slashings by verifying their signatures, submitting
 			// to the beacon node's operations pool, and logging them.
@@ -120,7 +127,7 @@ func (s *Service) processQueuedAttestations(ctx context.Context, slotTicker <-ch
 				continue
 			}
 
-			log.WithField("elapsed", time.Since(start)).Debug("Done checking slashable attestations")
+			log.WithField("elapsed", time.Since(start)).Info("Done checking slashable attestations")
 
 			processedAttestationsTotal.Add(float64(len(validAtts)))
 		case <-ctx.Done():
@@ -134,7 +141,8 @@ func (s *Service) processQueuedAttestations(ctx context.Context, slotTicker <-ch
 func (s *Service) processQueuedBlocks(ctx context.Context, slotTicker <-chan types.Slot) {
 	for {
 		select {
-		case currentSlot := <-slotTicker:
+		case <-slotTicker:
+			currentSlot := s.serviceCfg.HeadStateFetcher.HeadSlot()
 			blocks := s.blksQueue.dequeue()
 			currentEpoch := helpers.SlotToEpoch(currentSlot)
 
@@ -144,7 +152,7 @@ func (s *Service) processQueuedBlocks(ctx context.Context, slotTicker <-chan typ
 				"currentSlot":  currentSlot,
 				"currentEpoch": currentEpoch,
 				"numBlocks":    len(blocks),
-			}).Info("New slot, processing queued blocks for slashing detection")
+			}).Info("Processing queued blocks for slashing detection")
 
 			start := time.Now()
 			slashings, err := s.detectProposerSlashings(ctx, blocks)

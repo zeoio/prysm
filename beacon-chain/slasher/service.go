@@ -53,7 +53,9 @@ type Service struct {
 	blksQueue              *blocksQueue
 	ctx                    context.Context
 	cancel                 context.CancelFunc
-	slotTicker             *slotutil.SlotTicker
+	attSlotTicker          *slotutil.SlotTicker
+	blockSlotTicker        *slotutil.SlotTicker
+	pruningTicker          *slotutil.SlotTicker
 	genesisTime            time.Time
 }
 
@@ -63,8 +65,8 @@ func New(ctx context.Context, srvCfg *ServiceConfig) (*Service, error) {
 	return &Service{
 		params:                 DefaultParams(),
 		serviceCfg:             srvCfg,
-		indexedAttsChan:        make(chan *ethpb.IndexedAttestation, 1),
-		beaconBlockHeadersChan: make(chan *ethpb.SignedBeaconBlockHeader, 1),
+		indexedAttsChan:        make(chan *ethpb.IndexedAttestation, 100),
+		beaconBlockHeadersChan: make(chan *ethpb.SignedBeaconBlockHeader, 100),
 		attsQueue:              newAttestationsQueue(),
 		blksQueue:              newBlocksQueue(),
 		ctx:                    ctx,
@@ -110,23 +112,28 @@ func (s *Service) run() {
 
 	stateSub.Unsubscribe()
 	secondsPerSlot := params.BeaconConfig().SecondsPerSlot
-	s.slotTicker = slotutil.NewSlotTicker(s.genesisTime, secondsPerSlot)
+	s.attSlotTicker = slotutil.NewSlotTicker(s.genesisTime, secondsPerSlot)
+	s.blockSlotTicker = slotutil.NewSlotTicker(s.genesisTime, secondsPerSlot)
+	s.pruningTicker = slotutil.NewSlotTicker(s.genesisTime, secondsPerSlot)
 
-	s.waitForSync(s.genesisTime)
-
-	log.Info("Completed chain sync, starting slashing detection")
-	go s.processQueuedAttestations(s.ctx, s.slotTicker.C())
-	go s.processQueuedBlocks(s.ctx, s.slotTicker.C())
+	go s.processQueuedAttestations(s.ctx, s.attSlotTicker.C())
+	// go s.processQueuedBlocks(s.ctx, s.blockSlotTicker.C())
 	go s.receiveAttestations(s.ctx)
-	go s.receiveBlocks(s.ctx)
-	go s.pruneSlasherData(s.ctx, s.slotTicker.C())
+	// go s.receiveBlocks(s.ctx)
+	// go s.pruneSlasherData(s.ctx, s.pruningTicker.C())
 }
 
 // Stop the slasher service.
 func (s *Service) Stop() error {
 	s.cancel()
-	if s.slotTicker != nil {
-		s.slotTicker.Done()
+	if s.attSlotTicker != nil {
+		s.attSlotTicker.Done()
+	}
+	if s.blockSlotTicker != nil {
+		s.blockSlotTicker.Done()
+	}
+	if s.pruningTicker != nil {
+		s.pruningTicker.Done()
 	}
 	return nil
 }
@@ -134,22 +141,4 @@ func (s *Service) Stop() error {
 // Status of the slasher service.
 func (s *Service) Status() error {
 	return nil
-}
-
-func (s *Service) waitForSync(genesisTime time.Time) {
-	if slotutil.SlotsSinceGenesis(genesisTime) == 0 || !s.serviceCfg.SyncChecker.Syncing() {
-		return
-	}
-	for {
-		select {
-		case <-s.slotTicker.C():
-			// If node is still syncing, do not operate slasher.
-			if s.serviceCfg.SyncChecker.Syncing() {
-				continue
-			}
-			return
-		case <-s.ctx.Done():
-			return
-		}
-	}
 }
