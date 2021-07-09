@@ -798,45 +798,11 @@ func TestService_processQueuedAttestations(t *testing.T) {
 	assert.LogsContain(t, hook, "New slot, processing queued")
 }
 
-// func BenchmarkCheckSlashableAttestations_Validators_1(b *testing.B) {
-// 	b.StopTimer()
-// 	slasherDB := dbtest.SetupSlasherDB(b)
-
-// 	beaconState, err := testutil.NewBeaconState()
-// 	require.NoError(b, err)
-// 	slot := types.Slot(0)
-// 	mockChain := &mock.ChainService{
-// 		State: beaconState,
-// 		Slot:  &slot,
-// 	}
-
-// 	s := &Service{
-// 		params: DefaultParams(),
-// 		serviceCfg: &ServiceConfig{
-// 			Database:         slasherDB,
-// 			StateNotifier:    &mock.MockStateNotifier{},
-// 			HeadStateFetcher: mockChain,
-// 		},
-// 		attsQueue: newAttestationsQueue(),
-// 	}
-// 	validatorIndices := []uint64{0}
-
-// 	// b.Run("1 attestation", func(b *testing.B) {
-// 	// })
-// 	runAttestationsBenchmark(b, s, 1, validatorIndices)
-// 	// b.Run("100 attestations", func(b *testing.B) {
-// 	// 	runAttestationsBenchmark(b, s, 100, validatorIndices)
-// 	// })
-// 	// b.Run("600 attestations", func(b *testing.B) {
-// 	// 	runAttestationsBenchmark(b, s, 600, validatorIndices)
-// 	// })
-// }
-
-func TestAttestationDetect(t *testing.T) {
-	slasherDB := dbtest.SetupSlasherDB(t)
+func BenchmarkCheckSlashableAttestations(b *testing.B) {
+	slasherDB := dbtest.SetupSlasherDB(b)
 
 	beaconState, err := testutil.NewBeaconState()
-	require.NoError(t, err)
+	require.NoError(b, err)
 	slot := types.Slot(0)
 	mockChain := &mock.ChainService{
 		State: beaconState,
@@ -852,61 +818,74 @@ func TestAttestationDetect(t *testing.T) {
 		},
 		attsQueue: newAttestationsQueue(),
 	}
-	validatorIndices := []uint64{0}
-	numAtts := 10
+
+	b.Run("1 attestation 1 validator", func(b *testing.B) {
+		b.ResetTimer()
+		runAttestationsBenchmark(b, s, 1, 1 /* validator */)
+	})
+	b.Run("1 attestation 100 validators", func(b *testing.B) {
+		b.ResetTimer()
+		runAttestationsBenchmark(b, s, 1, 100 /* validator */)
+	})
+	b.Run("1 attestation 1000 validators", func(b *testing.B) {
+		b.ResetTimer()
+		runAttestationsBenchmark(b, s, 1, 1000 /* validator */)
+	})
+
+	b.Run("100 attestations 1 validator", func(b *testing.B) {
+		b.ResetTimer()
+		runAttestationsBenchmark(b, s, 100, 1 /* validator */)
+	})
+	b.Run("100 attestations 100 validators", func(b *testing.B) {
+		b.ResetTimer()
+		runAttestationsBenchmark(b, s, 100, 100 /* validator */)
+	})
+	b.Run("100 attestations 1000 validators", func(b *testing.B) {
+		b.ResetTimer()
+		runAttestationsBenchmark(b, s, 100, 1000 /* validator */)
+	})
+
+	b.Run("1000 attestations 1 validator", func(b *testing.B) {
+		b.ResetTimer()
+		runAttestationsBenchmark(b, s, 1000, 1 /* validator */)
+	})
+	b.Run("1000 attestations 100 validators", func(b *testing.B) {
+		b.ResetTimer()
+		runAttestationsBenchmark(b, s, 1000, 100 /* validator */)
+	})
+	b.Run("1000 attestations 1000 validators", func(b *testing.B) {
+		b.ResetTimer()
+		runAttestationsBenchmark(b, s, 1000, 1000 /* validator */)
+	})
+}
+
+func runAttestationsBenchmark(b *testing.B, s *Service, numAtts uint64, numValidators uint64) {
+	indices := make([]uint64, numValidators)
+	for i := uint64(0); i < numValidators; i++ {
+		indices[i] = i
+	}
 	atts := make([]*slashertypes.IndexedAttestationWrapper, numAtts)
-	for i := 0; i < numAtts; i++ {
+	for i := uint64(0); i < numAtts; i++ {
 		source := types.Epoch(i)
 		target := types.Epoch(i + 1)
 		signingRoot := [32]byte{}
 		copy(signingRoot[:], fmt.Sprintf("%d", i))
 		atts[i] = createAttestationWrapper(
-			t,
+			b,
 			source,
-			target,           /* target */
-			validatorIndices, /* indices */
-			signingRoot[:],   /* signingRoot */
+			target,         /* target */
+			indices,        /* indices */
+			signingRoot[:], /* signingRoot */
 		)
 	}
-	start := time.Now()
-	s.checkSlashableAttestations(context.Background(), atts)
-	log.Info(time.Since(start))
-	t.Error("Could not compute")
+	for i := 0; i < b.N; i++ {
+		numEpochs := numAtts
+		totalSeconds := numEpochs * uint64(params.BeaconConfig().SlotsPerEpoch) * params.BeaconConfig().SecondsPerSlot
+		genesisTime := time.Now().Add(-time.Second * time.Duration(totalSeconds))
+		s.genesisTime = genesisTime
+		s.checkSlashableAttestations(context.Background(), atts)
+	}
 }
-
-// func runAttestationsBenchmark(b *testing.B, s *Service, numAtts int, indices []uint64) {
-// 	b.StopTimer()
-// 	atts := make([]*slashertypes.IndexedAttestationWrapper, numAtts)
-// 	for i := 0; i < numAtts; i++ {
-// 		source := types.Epoch(i)
-// 		target := types.Epoch(i + 1)
-// 		signingRoot := [32]byte{}
-// 		copy(signingRoot[:], fmt.Sprintf("%d", i))
-// 		atts[i] = createAttestationWrapper(
-// 			b,
-// 			source,
-// 			target,         /* target */
-// 			indices,        /* indices */
-// 			signingRoot[:], /* signingRoot */
-// 		)
-// 	}
-// 	b.ResetTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		currentEpoch := slotutil.EpochsSinceGenesis(s.genesisTime)
-// 		slashings := make([]*ethpb.AttesterSlashing, 0)
-// 		indices := make([]types.ValidatorIndex, 0)
-// 		groupedAtts := s.groupByValidatorChunkIndex(atts)
-// 		for validatorChunkIdx, batch := range groupedAtts {
-// 			attSlashings, err := s.detectAllAttesterSlashings(context.Background(), &chunkUpdateArgs{
-// 				validatorChunkIndex: validatorChunkIdx,
-// 				currentEpoch:        currentEpoch,
-// 			}, batch)
-// 			require.NoError(b, err)
-// 			slashings = append(slashings, attSlashings...)
-// 			indices = append(indices, s.params.validatorIndicesInChunk(validatorChunkIdx)...)
-// 		}
-// 	}
-// }
 
 func createAttestationWrapper(t testing.TB, source, target types.Epoch, indices []uint64, signingRoot []byte) *slashertypes.IndexedAttestationWrapper {
 	data := &ethpb.AttestationData{
