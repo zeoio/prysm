@@ -13,12 +13,12 @@ import (
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/beacon-chain/db"
+	"github.com/prysmaticlabs/prysm/beacon-chain/db/filters"
 	"github.com/prysmaticlabs/prysm/beacon-chain/operations/slashings"
 	slashertypes "github.com/prysmaticlabs/prysm/beacon-chain/slasher/types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
 	"github.com/prysmaticlabs/prysm/beacon-chain/sync"
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/interfaces"
 	"github.com/prysmaticlabs/prysm/shared/attestationutil"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/event"
@@ -33,6 +33,7 @@ type ServiceConfig struct {
 	IndexedAttestationsFeed *event.Feed
 	BeaconBlockHeadersFeed  *event.Feed
 	Database                db.SlasherDatabase
+	BeaconDatabase          db.Database
 	StateNotifier           statefeed.Notifier
 	AttestationStateFetcher blockchain.AttestationStateFetcher
 	StateGen                stategen.StateManager
@@ -146,19 +147,25 @@ func (s *Service) Status() error {
 }
 
 func (s *Service) backfillSlasherHistory(ctx context.Context) {
+	blocksOnDisk, _, err := s.serviceCfg.BeaconDatabase.Blocks(
+		ctx, filters.NewFilter().SetStartEpoch(0).SetEndEpoch(1024),
+	)
+	if err != nil {
+		log.WithError(err).Error("Could not retrieve blocks from database")
+		return
+	}
 	// Perform backfilling in chunks of N blocks at a time
-	blocksOnDisk := make([]interfaces.BeaconBlock, 0)
 	blockWrappers := make([]*slashertypes.SignedBlockHeaderWrapper, 0)
 	attWrappers := make([]*slashertypes.IndexedAttestationWrapper, 0)
 	for _, blk := range blocksOnDisk {
-		preState, err := s.serviceCfg.StateGen.StateByRoot(ctx, bytesutil.ToBytes32(blk.ParentRoot()))
+		preState, err := s.serviceCfg.StateGen.StateByRoot(ctx, bytesutil.ToBytes32(blk.Block().ParentRoot()))
 		if err != nil {
 			return
 		}
 		if preState == nil || preState.IsNil() {
 			return
 		}
-		for _, att := range blk.Body().Attestations() {
+		for _, att := range blk.Block().Body().Attestations() {
 			committee, err := helpers.BeaconCommitteeFromState(preState, att.Data.Slot, att.Data.CommitteeIndex)
 			if err != nil {
 				log.WithError(err).Error("Could not get attestation committee")
@@ -185,25 +192,27 @@ func (s *Service) backfillSlasherHistory(ctx context.Context) {
 	}
 
 	// TODO: Need to also save the blocks and attestations in slasher's database.
+	_ = attWrappers
+	_ = blockWrappers
 
-	propSlashings, err := s.detectProposerSlashings(ctx, blockWrappers)
-	if err != nil {
-		log.WithError(err).Error("Could not detect proposer slashings on backfilled data")
-		return
-	}
-	attSlashings, err := s.checkSlashableAttestations(ctx, attWrappers)
-	if err != nil {
-		log.WithError(err).Error("Could not detect proposer slashings on backfilled data")
-		return
-	}
-	if err := s.processProposerSlashings(ctx, propSlashings); err != nil {
-		log.WithError(err).Error("Could not process proposer slashings")
-		return
-	}
-	if err := s.processAttesterSlashings(ctx, attSlashings); err != nil {
-		log.WithError(err).Error("Could not process proposer slashings")
-		return
-	}
+	// propSlashings, err := s.detectProposerSlashings(ctx, blockWrappers)
+	// if err != nil {
+	// 	log.WithError(err).Error("Could not detect proposer slashings on backfilled data")
+	// 	return
+	// }
+	// attSlashings, err := s.checkSlashableAttestations(ctx, attWrappers)
+	// if err != nil {
+	// 	log.WithError(err).Error("Could not detect proposer slashings on backfilled data")
+	// 	return
+	// }
+	// if err := s.processProposerSlashings(ctx, propSlashings); err != nil {
+	// 	log.WithError(err).Error("Could not process proposer slashings")
+	// 	return
+	// }
+	// if err := s.processAttesterSlashings(ctx, attSlashings); err != nil {
+	// 	log.WithError(err).Error("Could not process proposer slashings")
+	// 	return
+	// }
 }
 
 func (s *Service) waitForSync(ctx context.Context, genesisTime time.Time) {
