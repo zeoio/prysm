@@ -16,6 +16,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
 	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
 	eth "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
+	"github.com/prysmaticlabs/prysm/shared/attestationutil"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/traceutil"
 	"go.opencensus.io/trace"
@@ -86,11 +87,6 @@ func (s *Service) validateCommitteeIndexBeaconAttestation(ctx context.Context, p
 		return pubsub.ValidationReject
 	}
 
-	// Verify this the first attestation received for the participating validator for the slot.
-	if s.hasSeenCommitteeIndicesSlot(att.Data.Slot, att.Data.CommitteeIndex, att.AggregationBits) {
-		return pubsub.ValidationIgnore
-	}
-
 	// Reject an attestation if it references an invalid block.
 	if s.hasBadBlock(bytesutil.ToBytes32(att.Data.BeaconBlockRoot)) ||
 		s.hasBadBlock(bytesutil.ToBytes32(att.Data.Target.Root)) ||
@@ -122,17 +118,29 @@ func (s *Service) validateCommitteeIndexBeaconAttestation(ctx context.Context, p
 		return pubsub.ValidationIgnore
 	}
 
-	validationRes := s.validateUnaggregatedAttTopic(ctx, att, preState, *originalTopic)
+	indexedAtt, validationRes := s.convertIndexedAtt(ctx, att, preState)
+	if validationRes != pubsub.ValidationAccept {
+		return validationRes
+	}
+	if len(indexedAtt.AttestingIndices) != 1 {
+		return pubsub.ValidationReject
+	}
+	vIdx := indexedAtt.AttestingIndices[0]
+	// Verify this the first attestation received for the participating validator for the slot.
+	if s.hasSeenCommitteeIndicesSlot(att.Data.Target.Epoch, types.ValidatorIndex(vIdx)) {
+		return pubsub.ValidationIgnore
+	}
+
+	validationRes = s.validateUnaggregatedAttTopic(ctx, att, preState, *originalTopic)
 	if validationRes != pubsub.ValidationAccept {
 		return validationRes
 	}
 
-	validationRes = s.validateUnaggregatedAttWithState(ctx, att, preState)
-	if validationRes != pubsub.ValidationAccept {
-		return validationRes
+	if err := blocks.VerifyIndexedAttestation(ctx, preState, indexedAtt); err != nil {
+		return pubsub.ValidationReject
 	}
 
-	s.setSeenCommitteeIndicesSlot(att.Data.Slot, att.Data.CommitteeIndex, att.AggregationBits)
+	s.setSeenCommitteeIndicesSlot(att.Data.Target.Epoch, types.ValidatorIndex(vIdx))
 
 	msg.ValidatorData = att
 
@@ -169,56 +177,58 @@ func (s *Service) validateUnaggregatedAttTopic(ctx context.Context, a *eth.Attes
 	return pubsub.ValidationAccept
 }
 
-// This validates beacon unaggregated attestation using the given state, the validation consists of bitfield length and count consistency
-// and signature verification.
-func (s *Service) validateUnaggregatedAttWithState(ctx context.Context, a *eth.Attestation, bs iface.ReadOnlyBeaconState) pubsub.ValidationResult {
-	ctx, span := trace.StartSpan(ctx, "sync.validateUnaggregatedAttWithState")
+func (s *Service) convertIndexedAtt(ctx context.Context, a *eth.Attestation, bs iface.ReadOnlyBeaconState) (*eth.IndexedAttestation, pubsub.ValidationResult) {
+	ctx, span := trace.StartSpan(ctx, "sync.convertIndexedAtt")
 	defer span.End()
 
 	committee, err := helpers.BeaconCommitteeFromState(bs, a.Data.Slot, a.Data.CommitteeIndex)
 	if err != nil {
 		traceutil.AnnotateError(span, err)
-		return pubsub.ValidationIgnore
+		return nil, pubsub.ValidationIgnore
 	}
 
 	// Verify number of aggregation bits matches the committee size.
 	if err := helpers.VerifyBitfieldLength(a.AggregationBits, uint64(len(committee))); err != nil {
-		return pubsub.ValidationReject
+		return nil, pubsub.ValidationReject
 	}
 
 	// Attestation must be unaggregated and the bit index must exist in the range of committee indices.
 	// Note: The Ethereum Beacon Chain spec suggests (len(get_attesting_indices(state, attestation.data, attestation.aggregation_bits)) == 1)
 	// however this validation can be achieved without use of get_attesting_indices which is an O(n) lookup.
 	if a.AggregationBits.Count() != 1 || a.AggregationBits.BitIndices()[0] >= len(committee) {
-		return pubsub.ValidationReject
+		return nil, pubsub.ValidationReject
 	}
 
-	if err := blocks.VerifyAttestationSignature(ctx, bs, a); err != nil {
-		log.WithError(err).Debug("Could not verify attestation")
-		traceutil.AnnotateError(span, err)
-		return pubsub.ValidationReject
+	indexedAtt, err := attestationutil.ConvertToIndexed(ctx, a, committee)
+	if err != nil {
+		return nil, pubsub.ValidationIgnore
 	}
 
-	return pubsub.ValidationAccept
+	return indexedAtt, pubsub.ValidationAccept
 }
 
-// Returns true if the attestation was already seen for the participating validator for the slot.
-func (s *Service) hasSeenCommitteeIndicesSlot(slot types.Slot, committeeID types.CommitteeIndex, aggregateBits []byte) bool {
+// Returns true if the attestation was already seen for the participating validator index for the epoch.
+func (s *Service) hasSeenCommitteeIndicesSlot(epoch types.Epoch, index types.ValidatorIndex) bool {
 	s.seenAttestationLock.RLock()
 	defer s.seenAttestationLock.RUnlock()
-	b := append(bytesutil.Bytes32(uint64(slot)), bytesutil.Bytes32(uint64(committeeID))...)
-	b = append(b, aggregateBits...)
-	_, seen := s.seenAttestationCache.Get(string(b))
-	return seen
+
+	key := int64(index)
+	if epoch%2 == 0 {
+		key = -key
+	}
+	return s.seenAttestationCache[key]
 }
 
-// Set committee's indices and slot as seen for incoming attestations.
-func (s *Service) setSeenCommitteeIndicesSlot(slot types.Slot, committeeID types.CommitteeIndex, aggregateBits []byte) {
+// Set committee's indices and epoch as seen for incoming attestations.
+func (s *Service) setSeenCommitteeIndicesSlot(epoch types.Epoch, index types.ValidatorIndex) {
 	s.seenAttestationLock.Lock()
 	defer s.seenAttestationLock.Unlock()
-	b := append(bytesutil.Bytes32(uint64(slot)), bytesutil.Bytes32(uint64(committeeID))...)
-	b = append(b, aggregateBits...)
-	s.seenAttestationCache.Add(string(b), true)
+
+	key := int64(index)
+	if epoch%2 == 0 {
+		key = -key
+	}
+	s.seenAttestationCache[key] = true
 }
 
 // hasBlockAndState returns true if the beacon node knows about a block and associated state in the

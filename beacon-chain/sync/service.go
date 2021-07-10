@@ -99,7 +99,7 @@ type Service struct {
 	seenBlockLock             sync.RWMutex
 	seenBlockCache            *lru.Cache
 	seenAttestationLock       sync.RWMutex
-	seenAttestationCache      *lru.Cache
+	seenAttestationCache      map[int64]bool
 	seenExitLock              sync.RWMutex
 	seenExitCache             *lru.Cache
 	seenProposerSlashingLock  sync.RWMutex
@@ -194,10 +194,6 @@ func (s *Service) initCaches() error {
 	if err != nil {
 		return err
 	}
-	attCache, err := lru.New(seenAttSize)
-	if err != nil {
-		return err
-	}
 	exitCache, err := lru.New(seenExitSize)
 	if err != nil {
 		return err
@@ -211,7 +207,7 @@ func (s *Service) initCaches() error {
 		return err
 	}
 	s.seenBlockCache = blkCache
-	s.seenAttestationCache = attCache
+	s.seenAttestationCache = make(map[int64]bool)
 	s.seenExitCache = exitCache
 	s.seenAttesterSlashingCache = make(map[uint64]bool)
 	s.seenProposerSlashingCache = proposerSlashingCache

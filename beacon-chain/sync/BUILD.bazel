@@ -71,6 +71,7 @@ go_library(
         "//proto/interfaces:go_default_library",
         "//shared:go_default_library",
         "//shared/abool:go_default_library",
+        "//shared/attestationutil:go_default_library",
         "//shared/bls:go_default_library",
         "//shared/bytesutil:go_default_library",
         "//shared/interfaces:go_default_library",
