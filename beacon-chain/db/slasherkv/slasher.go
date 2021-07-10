@@ -26,6 +26,7 @@ const (
 	attestationRecordKeySize = 32 // Bytes.
 	signingRootSize          = 32 // Bytes.
 )
+var lock sync.RWMutex
 
 // LastEpochWrittenForValidators given a list of validator indices returns the latest
 // epoch we have recorded the validators writing data for.
@@ -34,6 +35,17 @@ func (s *Store) LastEpochWrittenForValidators(
 ) ([]*slashertypes.AttestedEpochForValidator, error) {
 	ctx, span := trace.StartSpan(ctx, "BeaconDB.LastEpochWrittenForValidators")
 	defer span.End()
+
+	
+	lock.RLock()
+	for _, index := range validatorIndices {
+		if epoch, ok := s.epochWrittenByValidatorCache[index]; ok {
+		}
+	}
+	lock.RUnlock()
+
+	missedIndices := make([]types.ValidatorIndex, 0, len(validatorIndices)
+
 	attestedEpochs := make([]*slashertypes.AttestedEpochForValidator, 0)
 	encodedIndices := make([][]byte, len(validatorIndices))
 	for i, valIdx := range validatorIndices {

@@ -819,44 +819,45 @@ func BenchmarkCheckSlashableAttestations(b *testing.B) {
 		attsQueue: newAttestationsQueue(),
 	}
 
-	b.Run("1 attestation 1 validator", func(b *testing.B) {
-		b.ResetTimer()
-		runAttestationsBenchmark(b, s, 1, 1 /* validator */)
-	})
-	b.Run("1 attestation 100 validators", func(b *testing.B) {
-		b.ResetTimer()
-		runAttestationsBenchmark(b, s, 1, 100 /* validator */)
-	})
-	b.Run("1 attestation 1000 validators", func(b *testing.B) {
-		b.ResetTimer()
-		runAttestationsBenchmark(b, s, 1, 1000 /* validator */)
-	})
+	runAttestationsBenchmark(b, s, 1, 1 /* validator */)
+	// b.Run("1 attestation 1 validator", func(b *testing.B) {
+	// 	b.ResetTimer()
+	// 	runAttestationsBenchmark(b, s, 1, 1 /* validator */)
+	// })
+	// b.Run("1 attestation 100 validators", func(b *testing.B) {
+	// 	b.ResetTimer()
+	// 	runAttestationsBenchmark(b, s, 1, 100 /* validator */)
+	// })
+	// b.Run("1 attestation 1000 validators", func(b *testing.B) {
+	// 	b.ResetTimer()
+	// 	runAttestationsBenchmark(b, s, 1, 1000 /* validator */)
+	// })
 
-	b.Run("100 attestations 1 validator", func(b *testing.B) {
-		b.ResetTimer()
-		runAttestationsBenchmark(b, s, 100, 1 /* validator */)
-	})
-	b.Run("100 attestations 100 validators", func(b *testing.B) {
-		b.ResetTimer()
-		runAttestationsBenchmark(b, s, 100, 100 /* validator */)
-	})
-	b.Run("100 attestations 1000 validators", func(b *testing.B) {
-		b.ResetTimer()
-		runAttestationsBenchmark(b, s, 100, 1000 /* validator */)
-	})
+	// b.Run("100 attestations 1 validator", func(b *testing.B) {
+	// 	b.ResetTimer()
+	// 	runAttestationsBenchmark(b, s, 100, 1 /* validator */)
+	// })
+	// b.Run("100 attestations 100 validators", func(b *testing.B) {
+	// 	b.ResetTimer()
+	// 	runAttestationsBenchmark(b, s, 100, 100 /* validator */)
+	// })
+	// b.Run("100 attestations 1000 validators", func(b *testing.B) {
+	// 	b.ResetTimer()
+	// 	runAttestationsBenchmark(b, s, 100, 1000 /* validator */)
+	// })
 
-	b.Run("1000 attestations 1 validator", func(b *testing.B) {
-		b.ResetTimer()
-		runAttestationsBenchmark(b, s, 1000, 1 /* validator */)
-	})
-	b.Run("1000 attestations 100 validators", func(b *testing.B) {
-		b.ResetTimer()
-		runAttestationsBenchmark(b, s, 1000, 100 /* validator */)
-	})
-	b.Run("1000 attestations 1000 validators", func(b *testing.B) {
-		b.ResetTimer()
-		runAttestationsBenchmark(b, s, 1000, 1000 /* validator */)
-	})
+	// b.Run("1000 attestations 1 validator", func(b *testing.B) {
+	// 	b.ResetTimer()
+	// 	runAttestationsBenchmark(b, s, 1000, 1 /* validator */)
+	// })
+	// b.Run("1000 attestations 100 validators", func(b *testing.B) {
+	// 	b.ResetTimer()
+	// 	runAttestationsBenchmark(b, s, 1000, 100 /* validator */)
+	// })
+	// b.Run("1000 attestations 1000 validators", func(b *testing.B) {
+	// 	b.ResetTimer()
+	// 	runAttestationsBenchmark(b, s, 1000, 1000 /* validator */)
+	// })
 }
 
 func runAttestationsBenchmark(b *testing.B, s *Service, numAtts uint64, numValidators uint64) {

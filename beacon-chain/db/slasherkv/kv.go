@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/db/iface"
 	"github.com/prysmaticlabs/prysm/shared/fileutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
@@ -31,9 +32,10 @@ type Config struct {
 // Store defines an implementation of the Prysm Database interface
 // using BoltDB as the underlying persistent kv-store for Ethereum consensus.
 type Store struct {
-	db           *bolt.DB
-	databasePath string
-	ctx          context.Context
+	db                           *bolt.DB
+	databasePath                 string
+	ctx                          context.Context
+	epochWrittenByValidatorCache map[uint64]types.Epoch
 }
 
 // NewKVStore initializes a new boltDB key-value store at the directory
@@ -66,9 +68,10 @@ func NewKVStore(ctx context.Context, dirPath string, config *Config) (*Store, er
 	}
 	boltDB.AllocSize = boltAllocSize
 	kv := &Store{
-		db:           boltDB,
-		databasePath: dirPath,
-		ctx:          ctx,
+		db:                           boltDB,
+		databasePath:                 dirPath,
+		ctx:                          ctx,
+		epochWrittenByValidatorCache: make(map[uint64]types.Epoch),
 	}
 
 	if err := kv.db.Update(func(tx *bolt.Tx) error {
