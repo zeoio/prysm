@@ -11,13 +11,14 @@ import (
 	eth "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	prysmv2 "github.com/prysmaticlabs/prysm/proto/prysm/v2"
 	"github.com/prysmaticlabs/prysm/shared/params"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var expectedParticipation = 0.95 // 95% participation to make room for minor issues.
 
-var expectedSyncParticipation = 0.90 // 90% participation for sync committee members.
+var expectedSyncParticipation = 1.00 // 90% participation for sync committee members.
 
 // ValidatorsAreActive ensures the expected amount of validators are active.
 var ValidatorsAreActive = types.Evaluator{
@@ -130,16 +131,6 @@ func validatorsSyncParticipation(conns ...*grpc.ClientConn) error {
 	currEpoch := helpers.SlotToEpoch(currSlot)
 	lowestBound := currEpoch - 1
 
-	// TODO: Fix Sync Participation in fork epoch.
-	if currEpoch == params.AltairE2EForkEpoch {
-		return nil
-	}
-	// TODO: Fix Sync Participation in fork epoch to allow
-	// blocks in the fork epoch from being evaluated.
-	if lowestBound == params.AltairE2EForkEpoch {
-		lowestBound++
-	}
-
 	if lowestBound < params.AltairE2EForkEpoch {
 		lowestBound = params.AltairE2EForkEpoch
 	}
@@ -158,7 +149,7 @@ func validatorsSyncParticipation(conns ...*grpc.ClientConn) error {
 		syncAgg := blk.Block.Body.SyncAggregate
 		threshold := uint64(float64(syncAgg.SyncCommitteeBits.Len()) * expectedSyncParticipation)
 		if syncAgg.SyncCommitteeBits.Count() < threshold {
-			return errors.Errorf("In block of slot %d ,the aggregate bitvector with length of %d only got a count of %d", blk.Block.Slot, threshold, syncAgg.SyncCommitteeBits.Count())
+			logrus.Errorf("In block of slot %d ,the aggregate bitvector with length of %d only got a count of %d", blk.Block.Slot, threshold, syncAgg.SyncCommitteeBits.Count())
 		}
 	}
 	if lowestBound == currEpoch {
@@ -179,7 +170,7 @@ func validatorsSyncParticipation(conns ...*grpc.ClientConn) error {
 		syncAgg := blk.Block.Body.SyncAggregate
 		threshold := uint64(float64(syncAgg.SyncCommitteeBits.Len()) * expectedSyncParticipation)
 		if syncAgg.SyncCommitteeBits.Count() < threshold {
-			return errors.Errorf("In block of slot %d ,the aggregate bitvector with length of %d only got a count of %d", blk.Block.Slot, threshold, syncAgg.SyncCommitteeBits.Count())
+			logrus.Errorf("In block of slot %d ,the aggregate bitvector with length of %d only got a count of %d", blk.Block.Slot, threshold, syncAgg.SyncCommitteeBits.Count())
 		}
 	}
 	return nil

@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
+	"github.com/prysmaticlabs/prysm/proto/interfaces"
 	prysmv2 "github.com/prysmaticlabs/prysm/proto/prysm/v2"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/event"
@@ -178,7 +179,7 @@ func (v *ValidatorService) Start() {
 		return
 	}
 
-	v.validator = &validator{
+	valStruct := &validator{
 		db:                             v.db,
 		validatorClient:                ethpb.NewBeaconNodeValidatorClient(v.conn),
 		validatorClientV2:              prysmv2.NewBeaconNodeValidatorAltairClient(v.conn),
@@ -203,6 +204,10 @@ func (v *ValidatorService) Start() {
 		eipImportBlacklistedPublicKeys: slashablePublicKeys,
 		logDutyCountDown:               v.logDutyCountDown,
 	}
+	// Initial feed type before hand.
+	sub := valStruct.blockFeed.Subscribe(make(chan interfaces.SignedBeaconBlock))
+	sub.Unsubscribe()
+	v.validator = valStruct
 	go run(v.ctx, v.validator)
 	go v.recheckKeys(v.ctx)
 }
