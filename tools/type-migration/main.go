@@ -61,7 +61,7 @@ func main() {
 
 	parseStructs(d)
 
-	parseTransientStructs(d)
+	parseTransientStructs(desiredStructs)
 
 	f, err := os.Create(d.Out)
 	if err != nil {
@@ -117,27 +117,36 @@ func parseStructs(d *data) {
 	}
 }
 
-func parseTransientStructs(d *data) {
+func parseTransientStructs(structList map[string]bool) {
 	// Add any dependency structs also to the list to generate.
-	for structName := range desiredStructs {
+	for structName := range structList {
 		item, ok := structs[structName]
 		if !ok {
 			panic(structName)
 		}
-		for _, field := range item.Fields.List {
-			fieldType, ok := field.Type.(*ast.StarExpr)
-			if !ok {
-				continue
-			}
-			if isUnexportedField(field.Names[0].Name) {
-				continue
-			}
-			if strings.Contains(field.Names[0].Name, "Time") {
-				continue
-			}
-			desiredStructs[fmt.Sprintf("%s", fieldType.X)] = true
-			desiredStructsByFieldName[field.Names[0].Name] = fmt.Sprintf("%s", fieldType.X)
+		parseDesiredStructsFromFields(item.Fields)
+	}
+}
+
+func parseDesiredStructsFromFields(fields *ast.FieldList) {
+	for _, field := range fields.List {
+		fieldType, ok := field.Type.(*ast.StarExpr)
+		if !ok {
+			continue
 		}
+		if isUnexportedField(field.Names[0].Name) {
+			return
+		}
+		if strings.Contains(field.Names[0].Name, "Time") {
+			continue
+		}
+		desiredStructs[fmt.Sprintf("%s", fieldType.X)] = true
+		desiredStructsByFieldName[field.Names[0].Name] = fmt.Sprintf("%s", fieldType.X)
+		structTyp, ok := fieldType.X.(*ast.StructType)
+		if !ok {
+			continue
+		}
+		parseDesiredStructsFromFields(structTyp.Fields)
 	}
 }
 
@@ -146,6 +155,7 @@ func migrateStruct(srcPkg, targetPkg, typName string) string {
 	if !ok {
 		panic(fmt.Sprintf("Struct with name %s not found", typName))
 	}
+	fmt.Printf("Generating migration helper for %s from %s to %s\n", typName, srcPkg, targetPkg)
 	fields := make([]string, 0)
 	for _, field := range structObj.Fields.List {
 		name := field.Names[0].Name
