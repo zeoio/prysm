@@ -15,7 +15,11 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/fileutil"
 )
 
-var structs = map[string]*ast.StructType{}
+var (
+	structs                   = map[string]*ast.StructType{}
+	desiredStructs            map[string]bool
+	desiredStructsByFieldName map[string]string
+)
 
 type data struct {
 	Src             string
@@ -26,7 +30,7 @@ type data struct {
 	Out             string
 	OutPkg          string
 	TypesListString string
-	Types           map[string]bool
+	DesiredStructs  map[string]bool
 }
 
 type structTemplateData struct {
@@ -49,9 +53,10 @@ func main() {
 	flag.Parse()
 
 	typesList := strings.Split(d.TypesListString, ",")
-	d.Types = make(map[string]bool)
+	desiredStructs = make(map[string]bool)
+	desiredStructsByFieldName = make(map[string]string)
 	for _, typItem := range typesList {
-		d.Types[typItem] = true
+		desiredStructs[typItem] = true
 	}
 
 	parseStructs(d)
@@ -71,6 +76,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	d.DesiredStructs = desiredStructs
 	tpl.Execute(f, d)
 }
 
@@ -113,7 +119,7 @@ func parseStructs(d *data) {
 
 func parseTransientStructs(d *data) {
 	// Add any dependency structs also to the list to generate.
-	for structName := range d.Types {
+	for structName := range desiredStructs {
 		item, ok := structs[structName]
 		if !ok {
 			panic(structName)
@@ -129,7 +135,8 @@ func parseTransientStructs(d *data) {
 			if strings.Contains(field.Names[0].Name, "Time") {
 				continue
 			}
-			d.Types[fmt.Sprintf("%s", fieldType.X)] = true
+			desiredStructs[fmt.Sprintf("%s", fieldType.X)] = true
+			desiredStructsByFieldName[field.Names[0].Name] = fmt.Sprintf("%s", fieldType.X)
 		}
 	}
 }
@@ -148,11 +155,7 @@ func migrateStruct(srcPkg, targetPkg, typName string) string {
 		fields = append(fields, name)
 	}
 	tpl, err := template.New("struct").Funcs(template.FuncMap{
-		"capitalize": func(str string) string {
-			return strings.Title(str)
-		},
-		"migrateStruct": migrateStruct,
-		"handleField":   handleField,
+		"handleField": handleField,
 	}).Parse(structTemplate)
 	if err != nil {
 		panic(err)
@@ -168,14 +171,13 @@ func migrateStruct(srcPkg, targetPkg, typName string) string {
 }
 
 func handleField(srcPkg, targetPkg, fieldName string) string {
-	fmt.Sprintln("hitting handle field", srcPkg, targetPkg, fieldName)
-	_, isStruct := structs[fieldName]
+	structName, isStruct := desiredStructsByFieldName[fieldName]
 	if isStruct {
 		return fmt.Sprintf(
 			"%sTo%s%s(src.%s)",
 			capitalize(srcPkg),
 			capitalize(targetPkg),
-			fieldName,
+			structName,
 			fieldName,
 		)
 	}
@@ -197,9 +199,9 @@ func capitalize(str string) string {
 	return strings.Title(str)
 }
 
-var structTemplate = `&{{.TargetPkg}}.{{.TypName}}{
+var structTemplate = `{{ $data := . }}&{{.TargetPkg}}.{{.TypName}}{
 	{{range .Fields}}
-		{{.}}: {{handleField .SrcPkg .TargetPkg .}},{{end}}
+		{{.}}: {{handleField $data.SrcPkg $data.TargetPkg .}},{{end}}
 	}`
 
 var topLevelTemplate = `package {{.OutPkg}}
@@ -209,7 +211,7 @@ import (
 	{{.TargetPkg}} "{{.Target}}"
 )
 {{ $data := . }}
-{{range $item, $b := .Types}}
+{{range $item, $b := .DesiredStructs}}
 // {{capitalize $data.SrcPkg}}To{{capitalize $data.TargetPkg}}{{$item}} --
 func {{capitalize $data.SrcPkg}}To{{capitalize $data.TargetPkg}}{{$item}}(src *{{$data.SrcPkg}}.{{$item}}) *{{$data.TargetPkg}}.{{$item}} {
 	if src == nil {
