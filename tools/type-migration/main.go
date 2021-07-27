@@ -8,13 +8,14 @@ import (
 )
 
 type data struct {
-	Src       string
-	SrcPkg    string
-	Target    string
-	TargetPkg string
-	Out       string
-	OutPkg    string
-	Type      string
+	Src             string
+	SrcPkg          string
+	Target          string
+	TargetPkg       string
+	Out             string
+	OutPkg          string
+	TypesListString string
+	Types           []string
 }
 
 func main() {
@@ -25,8 +26,11 @@ func main() {
 	flag.StringVar(&d.TargetPkg, "target-pkg", "", "Target package name")
 	flag.StringVar(&d.Out, "out", "", "Output file name")
 	flag.StringVar(&d.Out, "out-pkg", "", "Output package name")
-	flag.StringVar(&d.Type, "type", "", "The type to write migration functions for")
+	flag.StringVar(&d.TypesListString, "types", "", "The type to write migration functions for")
 	flag.Parse()
+
+	d.Types = strings.Split(d.TypesListString, ",")
+
 	f, err := os.Create(d.Out)
 	if err != nil {
 		panic(err)
@@ -49,11 +53,13 @@ import (
 	{{.TargetPkg}} "{{.Target}}"
 )
 
-func {{capitalize .SrcPkg}}To{{capitalize .TargetPkg}}{{.Type}}(src *{{.SrcPkg}}.{{.Type}}) *{{.TargetPkg}}.{{.Type}} {
-	return &{{.TargetPkg}}.{{.Type}}{}
+{{range $typ = .Types}}
+func {{capitalize .SrcPkg}}To{{capitalize .TargetPkg}}{{$typ}}(src *{{.SrcPkg}}.{{$typ}}) *{{.TargetPkg}}.{{$typ}} {
+	return &{{.TargetPkg}}.{{$typ}}{}
 }
 
-func {{capitalize .TargetPkg}}To{{capitalize .SrcPkg}}{{.Type}}(src *{{.TargetPkg}}.{{.Type}}) *{{.SrcPkg}}.{{.Type}} {
-	return &{{.SrcPkg}}.{{.Type}}{}
+func {{capitalize .TargetPkg}}To{{capitalize .SrcPkg}}{{$typ}}(src *{{.TargetPkg}}.{{$typ}}) *{{.SrcPkg}}.{{$typ}} {
+	return &{{.SrcPkg}}.{{$typ}}{}
 }
+{{end}}
 `
