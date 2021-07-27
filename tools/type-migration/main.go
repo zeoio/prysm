@@ -31,6 +31,7 @@ type data struct {
 
 type structTemplateData struct {
 	TypName   string
+	SrcPkg    string
 	TargetPkg string
 	Fields    []string
 }
@@ -133,7 +134,7 @@ func parseTransientStructs(d *data) {
 	}
 }
 
-func migrateStruct(targetPkg string, typName string) string {
+func migrateStruct(srcPkg, targetPkg, typName string) string {
 	structObj, ok := structs[typName]
 	if !ok {
 		panic(fmt.Sprintf("Struct with name %s not found", typName))
@@ -151,6 +152,7 @@ func migrateStruct(targetPkg string, typName string) string {
 			return strings.Title(str)
 		},
 		"migrateStruct": migrateStruct,
+		"handleField":   handleField,
 	}).Parse(structTemplate)
 	if err != nil {
 		panic(err)
@@ -158,10 +160,26 @@ func migrateStruct(targetPkg string, typName string) string {
 	buf := bytes.NewBufferString("")
 	tpl.Execute(buf, structTemplateData{
 		TypName:   typName,
+		SrcPkg:    srcPkg,
 		TargetPkg: targetPkg,
 		Fields:    fields,
 	})
 	return buf.String()
+}
+
+func handleField(srcPkg, targetPkg, fieldName string) string {
+	fmt.Sprintln("hitting handle field", srcPkg, targetPkg, fieldName)
+	_, isStruct := structs[fieldName]
+	if isStruct {
+		return fmt.Sprintf(
+			"%sTo%s%s(src.%s)",
+			capitalize(srcPkg),
+			capitalize(targetPkg),
+			fieldName,
+			fieldName,
+		)
+	}
+	return fmt.Sprintf("src.%s", fieldName)
 }
 
 func isUnexportedField(str string) bool {
@@ -175,9 +193,13 @@ func firstRune(str string) (r rune) {
 	return
 }
 
+func capitalize(str string) string {
+	return strings.Title(str)
+}
+
 var structTemplate = `&{{.TargetPkg}}.{{.TypName}}{
 	{{range .Fields}}
-		{{.}}: src.{{.}},{{end}}
+		{{.}}: {{handleField .SrcPkg .TargetPkg .}},{{end}}
 	}`
 
 var topLevelTemplate = `package {{.OutPkg}}
@@ -193,7 +215,7 @@ func {{capitalize $data.SrcPkg}}To{{capitalize $data.TargetPkg}}{{$item}}(src *{
 	if src == nil {
 		return &{{$data.TargetPkg}}.{{$item}}{}
 	}
-	return {{migrateStruct $data.TargetPkg $item}}
+	return {{migrateStruct $data.SrcPkg $data.TargetPkg $item}}
 }
 
 // {{capitalize $data.TargetPkg}}To{{capitalize $data.SrcPkg}}{{$item}} --
@@ -201,7 +223,7 @@ func {{capitalize $data.TargetPkg}}To{{capitalize $data.SrcPkg}}{{$item}}(src *{
 	if src == nil {
 		return &{{$data.SrcPkg}}.{{$item}}{}
 	}
-	return {{migrateStruct $data.SrcPkg $item}}
+	return {{migrateStruct $data.TargetPkg $data.SrcPkg $item}}
 }
 {{end}}
 `
