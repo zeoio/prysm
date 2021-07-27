@@ -26,7 +26,7 @@ type data struct {
 	Out             string
 	OutPkg          string
 	TypesListString string
-	Types           []string
+	Types           map[string]bool
 }
 
 type structTemplateData struct {
@@ -36,7 +36,7 @@ type structTemplateData struct {
 }
 
 func main() {
-	var d data
+	d := &data{}
 	flag.StringVar(&d.Src, "src", "", "Source package path")
 	flag.StringVar(&d.Target, "target", "", "Target package path")
 	flag.StringVar(&d.SrcPkg, "src-pkg", "", "Source package name")
@@ -47,9 +47,15 @@ func main() {
 	flag.StringVar(&d.TypesListString, "types", "", "The type to write migration functions for")
 	flag.Parse()
 
-	d.Types = strings.Split(d.TypesListString, ",")
+	typesList := strings.Split(d.TypesListString, ",")
+	d.Types = make(map[string]bool)
+	for _, typItem := range typesList {
+		d.Types[typItem] = true
+	}
 
 	parseStructs(d)
+
+	parseTransientStructs(d)
 
 	f, err := os.Create(d.Out)
 	if err != nil {
@@ -67,7 +73,7 @@ func main() {
 	tpl.Execute(f, d)
 }
 
-func parseStructs(d data) {
+func parseStructs(d *data) {
 	fset := token.NewFileSet()
 	pkgPath, err := fileutil.ExpandPath(d.TargetRelative)
 	if err != nil {
@@ -104,6 +110,29 @@ func parseStructs(d data) {
 	}
 }
 
+func parseTransientStructs(d *data) {
+	// Add any dependency structs also to the list to generate.
+	for structName := range d.Types {
+		item, ok := structs[structName]
+		if !ok {
+			panic(structName)
+		}
+		for _, field := range item.Fields.List {
+			fieldType, ok := field.Type.(*ast.StarExpr)
+			if !ok {
+				continue
+			}
+			if isUnexportedField(field.Names[0].Name) {
+				continue
+			}
+			if strings.Contains(field.Names[0].Name, "Time") {
+				continue
+			}
+			d.Types[fmt.Sprintf("%s", fieldType.X)] = true
+		}
+	}
+}
+
 func migrateStruct(targetPkg string, typName string) string {
 	structObj, ok := structs[typName]
 	if !ok {
@@ -117,7 +146,6 @@ func migrateStruct(targetPkg string, typName string) string {
 		}
 		fields = append(fields, name)
 	}
-	fmt.Println(fields)
 	tpl, err := template.New("struct").Funcs(template.FuncMap{
 		"capitalize": func(str string) string {
 			return strings.Title(str)
@@ -149,8 +177,8 @@ func firstRune(str string) (r rune) {
 
 var structTemplate = `&{{.TargetPkg}}.{{.TypName}}{
 	{{range .Fields}}
-	{{.}}: src.{{.}},{{end}}
-}`
+		{{.}}: src.{{.}},{{end}}
+	}`
 
 var topLevelTemplate = `package {{.OutPkg}}
 
@@ -159,21 +187,21 @@ import (
 	{{.TargetPkg}} "{{.Target}}"
 )
 {{ $data := . }}
-{{range .Types}}
-// {{capitalize $data.SrcPkg}}To{{capitalize $data.TargetPkg}}{{.}} --
-func {{capitalize $data.SrcPkg}}To{{capitalize $data.TargetPkg}}{{.}}(src *{{$data.SrcPkg}}.{{.}}) *{{$data.TargetPkg}}.{{.}} {
+{{range $item, $b := .Types}}
+// {{capitalize $data.SrcPkg}}To{{capitalize $data.TargetPkg}}{{$item}} --
+func {{capitalize $data.SrcPkg}}To{{capitalize $data.TargetPkg}}{{$item}}(src *{{$data.SrcPkg}}.{{$item}}) *{{$data.TargetPkg}}.{{$item}} {
 	if src == nil {
-		return &{{$data.TargetPkg}}.{{.}}{}
+		return &{{$data.TargetPkg}}.{{$item}}{}
 	}
-	return {{migrateStruct $data.TargetPkg .}}
+	return {{migrateStruct $data.TargetPkg $item}}
 }
 
-// {{capitalize $data.TargetPkg}}To{{capitalize $data.SrcPkg}}{{.}} --
-func {{capitalize $data.TargetPkg}}To{{capitalize $data.SrcPkg}}{{.}}(src *{{$data.TargetPkg}}.{{.}}) *{{$data.SrcPkg}}.{{.}} {
+// {{capitalize $data.TargetPkg}}To{{capitalize $data.SrcPkg}}{{$item}} --
+func {{capitalize $data.TargetPkg}}To{{capitalize $data.SrcPkg}}{{$item}}(src *{{$data.TargetPkg}}.{{$item}}) *{{$data.SrcPkg}}.{{$item}} {
 	if src == nil {
-		return &{{$data.SrcPkg}}.{{.}}{}
+		return &{{$data.SrcPkg}}.{{$item}}{}
 	}
-	return {{migrateStruct $data.SrcPkg .}}
+	return {{migrateStruct $data.SrcPkg $item}}
 }
 {{end}}
 `
