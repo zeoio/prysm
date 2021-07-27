@@ -26,7 +26,6 @@ go_library(
     ],
     deps = [
         "//beacon-chain/cache:go_default_library",
-        "//beacon-chain/core/altair:go_default_library",
         "//beacon-chain/core/blocks:go_default_library",
         "//beacon-chain/core/epoch:go_default_library",
         "//beacon-chain/core/epoch/precompute:go_default_library",
@@ -75,7 +74,6 @@ go_test(
     embed = [":go_default_library"],
     shard_count = 3,
     deps = [
-        "//beacon-chain/core/altair:go_default_library",
         "//beacon-chain/core/blocks:go_default_library",
         "//beacon-chain/core/helpers:go_default_library",
         "//beacon-chain/p2p/types:go_default_library",

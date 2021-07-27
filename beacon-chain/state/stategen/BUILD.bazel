@@ -21,7 +21,6 @@ go_library(
         "//fuzz:__pkg__",
     ],
     deps = [
-        "//beacon-chain/core/altair:go_default_library",
         "//beacon-chain/core/helpers:go_default_library",
         "//beacon-chain/core/state:go_default_library",
         "//beacon-chain/db:go_default_library",
