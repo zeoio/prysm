@@ -106,12 +106,13 @@ func parseStructs(d *data) {
 				if !ok {
 					continue
 				}
-				// Needs to be a struct type.
-				structTyp, ok := sp.Type.(*ast.StructType)
-				if !ok {
+				// If a slice type...
+				switch typ := sp.Type.(type) {
+				case *ast.StructType:
+					structs[sp.Name.String()] = typ
+				default:
 					continue
 				}
-				structs[sp.Name.String()] = structTyp
 			}
 		}
 	}
