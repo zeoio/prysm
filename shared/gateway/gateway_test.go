@@ -47,13 +47,13 @@ func TestGateway_Customized(t *testing.T) {
 		},
 		"",
 		"",
-	).WithMux(mux).
+	).WithRouter(mux).
 		WithRemoteCert(cert).
 		WithAllowedOrigins(origins).
 		WithMaxCallRecvMsgSize(size).
 		WithApiMiddleware(middlewareAddr, endpointFactory)
 
-	assert.Equal(t, mux, g.mux)
+	assert.Equal(t, mux, g.router)
 	assert.Equal(t, cert, g.remoteCert)
 	require.Equal(t, 1, len(g.allowedOrigins))
 	assert.Equal(t, origins[0], g.allowedOrigins[0])
@@ -115,6 +115,6 @@ func TestGateway_NilHandler_NotFoundHandlerRegistered(t *testing.T) {
 	)
 
 	writer := httptest.NewRecorder()
-	g.mux.ServeHTTP(writer, &http.Request{Method: "GET", Host: "localhost", URL: &url.URL{Path: "/foo"}})
+	g.router.ServeHTTP(writer, &http.Request{Method: "GET", Host: "localhost", URL: &url.URL{Path: "/foo"}})
 	assert.Equal(t, http.StatusNotFound, writer.Code)
 }

@@ -16,6 +16,7 @@ type ApiProxyMiddleware struct {
 	ProxyAddress    string
 	EndpointCreator EndpointFactory
 	router          *mux.Router
+	gatewayRouter   *mux.Router
 }
 
 // EndpointFactory is responsible for creating new instances of Endpoint values.
@@ -72,18 +73,28 @@ type fieldProcessor struct {
 }
 
 // Run starts the proxy, registering all proxy endpoints on ApiProxyMiddleware.ProxyAddress.
-func (m *ApiProxyMiddleware) Run() error {
+func (m *ApiProxyMiddleware) Run(gatewayRouter *mux.Router) error {
 	m.router = mux.NewRouter()
 
 	for _, path := range m.EndpointCreator.Paths() {
-		m.handleApiPath(path, m.EndpointCreator)
+		m.handleApiPath(gatewayRouter, path, m.EndpointCreator)
 	}
 
 	return http.ListenAndServe(m.ProxyAddress, m.router)
 }
 
-func (m *ApiProxyMiddleware) handleApiPath(path string, endpointFactory EndpointFactory) {
+func (m *ApiProxyMiddleware) handleApiPath(gatewayRouter *mux.Router, path string, endpointFactory EndpointFactory) {
+	gatewayRouter.HandleFunc(path, func(w http.ResponseWriter, req *http.Request) {
+		m.handleApiPathInternal(w, req, path, endpointFactory)
+	})
+
 	m.router.HandleFunc(path, func(w http.ResponseWriter, req *http.Request) {
+		m.handleApiPathInternal(w, req, path, endpointFactory)
+	})
+}
+
+func (m *ApiProxyMiddleware) handleApiPathInternal(w http.ResponseWriter, req *http.Request, path string, endpointFactory EndpointFactory) {
+	{
 		endpoint, err := endpointFactory.Create(path)
 		if err != nil {
 			errJson := InternalServerErrorWithMessage(err, "could not create endpoint")
@@ -180,5 +191,5 @@ func (m *ApiProxyMiddleware) handleApiPath(path string, endpointFactory Endpoint
 			WriteError(w, errJson, nil)
 			return
 		}
-	})
+	}
 }

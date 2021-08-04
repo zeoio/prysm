@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gorilla/mux"
 	joonix "github.com/joonix/log"
 	beaconGateway "github.com/prysmaticlabs/prysm/beacon-chain/gateway"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/apimiddleware"
@@ -50,10 +51,10 @@ func main() {
 		WithMaxCallRecvMsgSize(uint64(*grpcMaxMsgSize)).
 		WithApiMiddleware(fmt.Sprintf("%s:%d", *host, *ethApiPort), &apimiddleware.BeaconEndpointFactory{})
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/swagger/", gateway.SwaggerServer())
-	mux.HandleFunc("/healthz", healthzServer(gw))
-	gw = gw.WithMux(mux)
+	r := mux.NewRouter()
+	r.HandleFunc("/swagger/", gateway.SwaggerServer())
+	r.HandleFunc("/healthz", healthzServer(gw))
+	gw = gw.WithRouter(r)
 
 	gw.Start()
 

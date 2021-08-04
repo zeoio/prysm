@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/mux"
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/shared"
@@ -40,7 +41,7 @@ type Gateway struct {
 	pbHandlers                   []PbMux
 	muxHandler                   MuxHandler
 	maxCallRecvMsgSize           uint64
-	mux                          *http.ServeMux
+	router                       *mux.Router
 	server                       *http.Server
 	cancel                       context.CancelFunc
 	remoteCert                   string
@@ -64,7 +65,7 @@ func New(
 	g := &Gateway{
 		pbHandlers:     pbHandlers,
 		muxHandler:     muxHandler,
-		mux:            http.NewServeMux(),
+		router:         mux.NewRouter(),
 		gatewayAddr:    gatewayAddress,
 		ctx:            ctx,
 		remoteAddr:     remoteAddr,
@@ -73,9 +74,9 @@ func New(
 	return g
 }
 
-// WithMux allows adding a custom http.ServeMux to the gateway.
-func (g *Gateway) WithMux(m *http.ServeMux) *Gateway {
-	g.mux = m
+// WithRouter allows adding a custom http.ServeMux to the gateway.
+func (g *Gateway) WithRouter(r *mux.Router) *Gateway {
+	g.router = r
 	return g
 }
 
@@ -126,14 +127,14 @@ func (g *Gateway) Start() {
 			}
 		}
 		for _, p := range h.Patterns {
-			g.mux.Handle(p, h.Mux)
+			g.router.Handle(p, h.Mux)
 		}
 	}
 
-	corsMux := g.corsMiddleware(g.mux)
+	corsMux := g.corsMiddleware(g.router)
 
 	if g.muxHandler != nil {
-		g.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		g.router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			g.muxHandler(corsMux, w, r)
 		})
 	}
@@ -278,7 +279,7 @@ func (g *Gateway) registerApiMiddleware() {
 		EndpointCreator: g.apiMiddlewareEndpointFactory,
 	}
 	log.WithField("API middleware address", g.apiMiddlewareAddr).Info("Starting API middleware")
-	if err := proxy.Run(); err != http.ErrServerClosed {
+	if err := proxy.Run(g.router); err != http.ErrServerClosed {
 		log.WithError(err).Error("Failed to start API middleware")
 		g.startFailure = err
 		return
