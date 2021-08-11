@@ -1,4 +1,4 @@
-// Copyright 2020 Prysmatic Labs.
+// Copyright 2021 Prysmatic Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,13 +15,11 @@ syntax = "proto3";
 
 package ethereum.eth.v1;
 
-import "google/api/annotations.proto";
 import "google/protobuf/descriptor.proto";
-import "google/protobuf/empty.proto";
 
 import "proto/eth/ext/options.proto";
+import "proto/eth/v1/attestation.proto";
 import "proto/eth/v1/beacon_state.proto";
-import "proto/eth/v1/beacon_chain_service.proto";
 
 option csharp_namespace = "Ethereum.Eth.v1";
 option go_package = "github.com/prysmaticlabs/prysm/proto/eth/v1";
@@ -29,34 +27,6 @@ option java_multiple_files = true;
 option java_outer_classname = "BeaconDebugProto";
 option java_package = "org.ethereum.eth.v1";
 option php_namespace = "Ethereum\\Eth\\v1";
-
-// Beacon chain debug API
-//
-// The beacon chain debug API is a set of endpoints to debug chain and shouldn't be exposed publicly.
-//
-// This service is defined in the upstream Ethereum consensus APIs repository (eth2.0-APIs/apis/debug).
-service BeaconDebug {
-  // GetBeaconState returns full BeaconState object for given stateId.
-  rpc GetBeaconState(StateRequest) returns (BeaconStateResponse) {
-    option (google.api.http) = {
-      get: "/eth/v1/debug/beacon/states/{state_id}"
-    };
-  }
-
-  // GetBeaconStateSSZ returns the SSZ-serialized version of the full BeaconState object for given stateId.
-  rpc GetBeaconStateSSZ(StateRequest) returns (BeaconStateSSZResponse) {
-    option (google.api.http) = {
-      get: "/eth/v1/debug/beacon/states/{state_id}/ssz"
-    };
-  }
-
-  // ListForkChoiceHeads retrieves all possible chain heads (leaves of fork choice tree).
-  rpc ListForkChoiceHeads(google.protobuf.Empty) returns (ForkChoiceHeadsResponse) {
-    option (google.api.http) = {
-      get: "/eth/v1/debug/beacon/heads"
-    };
-  }
-}
 
 message ForkChoiceHeadsResponse {
   repeated ForkChoiceHead data = 1;
