@@ -4,7 +4,6 @@ import (
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	ethpb_service "github.com/prysmaticlabs/prysm/proto/eth/service"
 	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	pbrpc "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/gateway"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -22,7 +21,7 @@ func DefaultConfig(enableDebugRPCEndpoints bool) MuxConfig {
 		ethpb.RegisterNodeHandler,
 		ethpb.RegisterBeaconChainHandler,
 		ethpb.RegisterBeaconNodeValidatorHandler,
-		pbrpc.RegisterHealthHandler,
+		ethpb.RegisterHealthHandler,
 	}
 	v1Registrations := []gateway.PbHandlerRegistration{
 		ethpb_service.RegisterBeaconNodeHandler,
@@ -31,7 +30,7 @@ func DefaultConfig(enableDebugRPCEndpoints bool) MuxConfig {
 		ethpb_service.RegisterEventsHandler,
 	}
 	if enableDebugRPCEndpoints {
-		v1Alpha1Registrations = append(v1Alpha1Registrations, pbrpc.RegisterDebugHandler)
+		v1Alpha1Registrations = append(v1Alpha1Registrations, ethpb.RegisterDebugHandler)
 		v1Registrations = append(v1Registrations, ethpb_service.RegisterBeaconDebugHandler)
 
 	}
