@@ -16,6 +16,7 @@ syntax = "proto3";
 package ethereum.eth.v2;
 
 import "proto/eth/ext/options.proto";
+import "proto/prysm/v1alpha1/beacon_block.proto";
 
 option csharp_namespace = "Ethereum.Eth.V2";
 option go_package = "github.com/prysmaticlabs/prysm/proto/eth/v2;eth";
@@ -40,4 +41,20 @@ message SyncCommitteeDuty {
   bytes pubkey = 1;
   uint64 validator_index = 2 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
   repeated uint64 sync_committee_indices = 3 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
+}
+
+message ProduceBlockRequest {
+  // The slot to request a block for.
+  uint64 slot = 1 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Slot"];
+
+  // The validators RANDAO reveal 96 byte value.
+  bytes randao_reveal = 2 [(ethereum.eth.ext.ssz_size) = "96"];
+
+  // 32 byte field of arbitrary data. This field may contain any data and
+  // is not used for anything other than a fun message.
+  optional bytes graffiti = 3 [(ethereum.eth.ext.ssz_size) = "32"];
+}
+
+message ProduceBlockResponse {
+  v1alpha1.BeaconBlockAltair data = 1;
 }
