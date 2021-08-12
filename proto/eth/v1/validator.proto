@@ -92,7 +92,7 @@ message AttesterDutiesRequest {
     // Epoch to request, should only be allowed 1 epoch ahead.
     uint64 epoch = 1 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Epoch"];
 
-    // Validator index to request duties for.
+    // Validator indices to request duties for.
     repeated uint64 index = 2 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
 }
 
