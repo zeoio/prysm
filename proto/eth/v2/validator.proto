@@ -38,7 +38,7 @@ message SyncCommitteeDutiesResponse {
 }
 
 message SyncCommitteeDuty {
-  bytes pubkey = 1;
+  bytes pubkey = 1 [(ethereum.eth.ext.ssz_size) = "48"];
   uint64 validator_index = 2 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
   repeated uint64 sync_committee_indices = 3 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
 }
@@ -69,4 +69,38 @@ message SyncCommitteeSubscription {
 
   // The final epoch that the specified validator requires the subscription for.
   uint64 until_epoch = 3 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Epoch"];
+}
+
+message ProduceSyncCommitteeContributionRequest {
+  // The slot for which a sync committee contribution should be created.
+  uint64 slot = 1 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Slot"];
+
+  // The subcommittee index for which to produce the contribution.
+  uint64 subcommittee_index = 2;
+
+  // The block root for which to produce the contribution.
+  bytes beacon_block_root = 3 [(ethereum.eth.ext.ssz_size) = "32"];
+}
+
+message ProduceSyncCommitteeContributionResponse {
+    SyncCommitteeContribution data = 1;
+}
+
+// Aggregated sync committee object to support light client.
+message SyncCommitteeContribution {
+  // Slot to which this contribution pertains.
+  uint64 slot = 1 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Slot"];
+
+  // 32 byte block root for this signature.
+  bytes beacon_block_root = 2 [(ethereum.eth.ext.ssz_size) = "32"];
+
+  // The subcommittee this contribution pertains to out of the broader sync committee.
+  uint64 subcommittee_index = 3;
+
+  // A bit is set if a signature from the validator at the corresponding
+  // index in the subcommittee is present in the aggregate `signature`.
+  bytes aggregation_bits = 4 [(ethereum.eth.ext.ssz_size) = "sync_committee_aggregate_bytes.size", (ethereum.eth.ext.cast_type) = "sync_committee_aggregate_bits.type"];
+
+  // Signature by the validator(s) over the block root of `slot`.
+  bytes signature = 5 [(ethereum.eth.ext.ssz_size) = "96"];
 }
