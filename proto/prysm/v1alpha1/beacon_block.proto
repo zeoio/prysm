@@ -142,7 +142,7 @@ message BeaconBlockBodyAltair {
     // At most MAX_VOLUNTARY_EXITS.
     repeated SignedVoluntaryExit voluntary_exits = 8 [(ethereum.eth.ext.ssz_max) = "16"];
 
-    // Sync aggregate object to track sync committee votes for light client support. [New in ]
+    // Sync aggregate object to track sync committee votes for light client support. [New in Altair]
     SyncAggregate sync_aggregate = 9;
 }
 

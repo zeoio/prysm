@@ -19,7 +19,7 @@ import "google/protobuf/descriptor.proto";
 import "proto/eth/ext/options.proto";
 import "proto/eth/v1/attestation.proto";
 
-option csharp_namespace = "Ethereum.Eth.v1";
+option csharp_namespace = "Ethereum.Eth.V1";
 option go_package = "github.com/prysmaticlabs/prysm/proto/eth/v1";
 option java_multiple_files = true;
 option java_outer_classname = "BeaconBlockProto";
@@ -60,24 +60,6 @@ message BeaconBlockV1 {
 
     // The Hard Fork 1 block body itself.
     BeaconBlockBodyV1 body = 5;
-}
-
-// The signed version of beacon block.
-message SignedBeaconBlock {
-    // The unsigned beacon block itself.
-    BeaconBlock block = 1;
-
-    // 96 byte BLS signature from the validator that produced this block.
-    bytes signature = 2 [(ethereum.eth.ext.ssz_size) = "96"];
-}
-
-// The signed version of Hard Fork 1 beacon block.
-message SignedBeaconBlockV1 {
-    // The unsigned beacon block itself.
-    BeaconBlockV1 block = 1;
-
-    // 96 byte BLS signature from the validator that produced this block.
-    bytes signature = 2 [(ethereum.eth.ext.ssz_size) = "96"];
 }
 
 // The block body of an Ethereum consensus beacon block.

@@ -22,6 +22,7 @@ import "google/protobuf/empty.proto";
 import "proto/eth/v1/attestation.proto";
 import "proto/eth/v1/beacon_block.proto";
 import "proto/eth/v1/beacon_chain.proto";
+import "proto/eth/v2/sync_committee.proto";
 
 option csharp_namespace = "Ethereum.Eth.Service";
 option go_package = "github.com/prysmaticlabs/prysm/proto/eth/service";
@@ -238,5 +239,12 @@ service BeaconChain {
   // GetDepositContract retrieves deposit contract address and genesis fork version.
   rpc GetDepositContract(google.protobuf.Empty) returns (v1.DepositContractResponse) {
     option (google.api.http) = {get: "/eth/v1/config/deposit_contract"};
+  }
+
+  // ListSyncCommittees retrieves the sync committees for the given state at the given epoch.
+  rpc ListSyncCommittees(v2.StateSyncCommitteesRequest) returns (v2.StateSyncCommitteesResponse) {
+    option (google.api.http) = {
+      get: "/eth/v1/beacon/states/{state_id}/sync_committees"
+    };
   }
 }

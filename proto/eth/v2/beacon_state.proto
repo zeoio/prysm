@@ -1,0 +1,75 @@
+// Copyright 2021 Prysmatic Labs.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+syntax = "proto3";
+
+package ethereum.eth.v2;
+
+import "proto/eth/ext/options.proto";
+import "proto/eth/v1/attestation.proto";
+import "proto/eth/v1/beacon_block.proto";
+import "proto/eth/v1/beacon_state.proto";
+import "proto/eth/v1/validator.proto";
+import "proto/prysm/v1alpha1/beacon_state.proto";
+
+option csharp_namespace = "Ethereum.Eth.V2";
+option go_package = "github.com/prysmaticlabs/prysm/proto/eth/v2;eth";
+option java_multiple_files = true;
+option java_outer_classname = "SyncCommitteeProto";
+option java_package = "org.ethereum.eth.v2";
+option php_namespace = "Ethereum\\Eth\\v2";
+
+message BeaconState {
+  // Versioning
+  uint64 genesis_time = 1;
+  bytes genesis_validators_root = 2 [(ethereum.eth.ext.ssz_size) = "32"];
+  uint64 slot = 3 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Slot"];
+  v1.Fork fork = 4;
+
+  // History
+  v1.BeaconBlockHeader latest_block_header = 5;
+  repeated bytes block_roots = 6 [(ethereum.eth.ext.ssz_size) = "block_roots.size"];
+  repeated bytes state_roots = 7 [(ethereum.eth.ext.ssz_size) = "state_roots.size"];
+  repeated bytes historical_roots = 8 [(ethereum.eth.ext.ssz_size) = "?,32", (ethereum.eth.ext.ssz_max)  = "16777216"];
+
+  // Eth1
+  v1.Eth1Data eth1_data = 9;
+  repeated v1.Eth1Data eth1_data_votes = 10 [(ethereum.eth.ext.ssz_max) = "eth1_data_votes.size"];
+  uint64 eth1_deposit_index = 11;
+
+  // Registry
+  repeated v1.Validator validators = 12 [(ethereum.eth.ext.ssz_max) = "1099511627776"];
+  repeated uint64 balances = 13 [(ethereum.eth.ext.ssz_max) = "1099511627776"];
+
+  // Randomness
+  repeated bytes randao_mixes = 14 [(ethereum.eth.ext.ssz_size) = "randao_mixes.size"];
+
+  // Slashings
+  repeated uint64 slashings = 15 [(ethereum.eth.ext.ssz_size) = "slashings.size"];
+
+  // Participation
+  bytes previous_epoch_participation = 16 [(ethereum.eth.ext.ssz_max) = "1099511627776"]; // [New in Altair, replaced previous_epoch_attestations]
+  bytes current_epoch_participation = 17 [(ethereum.eth.ext.ssz_max) = "1099511627776"]; // [New in Altair, replaced current_epoch_attestations]
+
+  // Finality
+  // Spec type [4]Bitvector which means this would be a fixed size of 4 bits.
+  bytes justification_bits = 18 [(ethereum.eth.ext.ssz_size) = "1", (ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/go-bitfield.Bitvector4"];
+  v1.Checkpoint previous_justified_checkpoint = 19;
+  v1.Checkpoint current_justified_checkpoint = 20;
+  v1.Checkpoint finalized_checkpoint = 21;
+
+  // New Altair fields
+  repeated uint64 inactivity_scores = 22 [(ethereum.eth.ext.ssz_max) = "1099511627776"]; // [New in Altair]
+  v1alpha1.SyncCommittee current_sync_committee = 23; // [New in Altair]
+  v1alpha1.SyncCommittee next_sync_committee = 24; // [New in Altair]
+}
