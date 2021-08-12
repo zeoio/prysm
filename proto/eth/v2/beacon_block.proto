@@ -35,6 +35,10 @@ message BlockResponse {
   BeaconBlockContainer data = 1;
 }
 
+message BlockSSZResponse {
+  bytes data = 1;
+}
+
 message BeaconBlockContainer {
   // The unsigned beacon block.
   v1alpha1.BeaconBlockAltair message = 1;

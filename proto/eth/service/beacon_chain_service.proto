@@ -22,6 +22,7 @@ import "google/protobuf/empty.proto";
 import "proto/eth/v1/attestation.proto";
 import "proto/eth/v1/beacon_block.proto";
 import "proto/eth/v1/beacon_chain.proto";
+import "proto/eth/v2/beacon_block.proto";
 import "proto/eth/v2/sync_committee.proto";
 
 option csharp_namespace = "Ethereum.Eth.Service";
@@ -95,6 +96,13 @@ service BeaconChain {
     };
   }
 
+  // ListSyncCommittees retrieves the sync committees for the given state at the given epoch.
+  rpc ListSyncCommittees(v2.StateSyncCommitteesRequest) returns (v2.StateSyncCommitteesResponse) {
+    option (google.api.http) = {
+      get: "/eth/v1/beacon/states/{state_id}/sync_committees"
+    };
+  }
+
   // Beacon blocks API related endpoints.
 
   // ListBlockHeaders retrieves block headers matching given query. By default it will fetch current head slot blocks.
@@ -123,13 +131,6 @@ service BeaconChain {
     };
   }
 
-  // GetBlock retrieves block details for given block id.
-  rpc GetBlock(v1.BlockRequest) returns (v1.BlockResponse) {
-    option (google.api.http) = {
-      get: "/eth/v1/beacon/blocks/{block_id}"
-    };
-  }
-
   // GetBlockRoot retrieves hashTreeRoot of BeaconBlock/BeaconBlockHeader.
   rpc GetBlockRoot(v1.BlockRequest) returns (v1.BlockRootResponse) {
     option (google.api.http) = {
@@ -137,10 +138,31 @@ service BeaconChain {
     };
   }
 
+  // GetBlock retrieves block details for given block id.
+  rpc GetBlock(v1.BlockRequest) returns (v1.BlockResponse) {
+    option (google.api.http) = {
+      get: "/eth/v1/beacon/blocks/{block_id}"
+    };
+  }
+
   // GetBlockSSZ returns the SSZ-serialized version of block details for given block id.
   rpc GetBlockSSZ(v1.BlockRequest) returns (v1.BlockSSZResponse) {
     option (google.api.http) = {
       get: "/eth/v1/beacon/blocks/{block_id}/ssz"
+    };
+  }
+
+  // GetBlockAltair retrieves block details for given block id.
+  rpc GetBlockAltair(v2.BlockRequest) returns (v2.BlockResponse) {
+    option (google.api.http) = {
+      get: "/eth/v2/beacon/blocks/{block_id}"
+    };
+  }
+
+  // GetBlockSSZAltair returns the SSZ-serialized version of block details for given block id.
+  rpc GetBlockSSZAltair(v2.BlockRequest) returns (v2.BlockSSZResponse) {
+    option (google.api.http) = {
+      get: "/eth/v2/beacon/blocks/{block_id}/ssz"
     };
   }
 
@@ -221,6 +243,14 @@ service BeaconChain {
     };
   }
 
+  // Submits sync committee signature objects to the node.
+  rpc SubmitSyncCommitteeSignature(v2.SyncCommitteeMessage) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/eth/v1/beacon/pool/sync_committees"
+      body: "*"
+    };
+  }
+
   // Beacon config API related endpoints.
 
   // GetForkSchedule retrieve all scheduled upcoming forks this node is aware of.
@@ -239,12 +269,5 @@ service BeaconChain {
   // GetDepositContract retrieves deposit contract address and genesis fork version.
   rpc GetDepositContract(google.protobuf.Empty) returns (v1.DepositContractResponse) {
     option (google.api.http) = {get: "/eth/v1/config/deposit_contract"};
-  }
-
-  // ListSyncCommittees retrieves the sync committees for the given state at the given epoch.
-  rpc ListSyncCommittees(v2.StateSyncCommitteesRequest) returns (v2.StateSyncCommitteesResponse) {
-    option (google.api.http) = {
-      get: "/eth/v1/beacon/states/{state_id}/sync_committees"
-    };
   }
 }

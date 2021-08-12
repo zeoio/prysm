@@ -49,7 +49,6 @@ message GenesisResponse {
 message StateRequest {
   // The state id which can be any of: "head" (canonical head in node's view),
   // "genesis", "finalized", "justified", <slot>, <hex encoded stateRoot with 0x prefix>.
-  // Uses the provided state_id for the request.
   bytes state_id = 1;
 }
 
@@ -79,7 +78,6 @@ message StateFinalityCheckpointResponse {
 message StateValidatorsRequest {
   // The state id which can be any of: "head" (canonical head in node's view),
   // "genesis", "finalized", "justified", <slot>, <hex encoded stateRoot with 0x prefix>.
-  // Uses the provided state_id for the request.
   bytes state_id = 1;
 
   // An array of either hex encoded public keys (with 0x prefix) or validator indexes.
@@ -94,7 +92,6 @@ message StateValidatorsRequest {
 message ValidatorBalancesRequest {
   // The state id which can be any of: "head" (canonical head in node's view),
   // "genesis", "finalized", "justified", <slot>, <hex encoded stateRoot with 0x prefix>.
-  // Uses the provided state_id for the request.
   bytes state_id = 1;
 
   // An array of either hex encoded public keys (with 0x prefix) or validator indexes.
@@ -120,7 +117,6 @@ message ValidatorBalance {
 message StateValidatorRequest {
   // The state id which can be any of: "head" (canonical head in node's view),
   // "genesis", "finalized", "justified", <slot>, <hex encoded stateRoot with 0x prefix>.
-  // Uses the provided state_id for the request.
   bytes state_id = 1;
 
   // The public key or index for the validator to retrieve information for.
@@ -134,7 +130,6 @@ message StateValidatorResponse {
 message StateCommitteesRequest {
   // The state id which can be any of: "head" (canonical head in node's view),
   // "genesis", "finalized", "justified", <slot>, <hex encoded stateRoot with 0x prefix>.
-  // Uses the provided state_id for the request.
   bytes state_id = 1;
 
   // The epoch to retrieve the committees of.

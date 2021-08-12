@@ -46,7 +46,6 @@ message SyncCommitteeMessage {
 message StateSyncCommitteesRequest {
   // The state id which can be any of: "head" (canonical head in node's view),
   // "genesis", "finalized", "justified", <slot>, <hex encoded stateRoot with 0x prefix>.
-  // Uses the provided state_id for the request.
   bytes state_id = 1;
 
   // The epoch to retrieve the committees of.

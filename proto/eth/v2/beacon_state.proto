@@ -74,6 +74,12 @@ message BeaconState {
   v1alpha1.SyncCommittee next_sync_committee = 24; // [New in Altair]
 }
 
+message StateRequest {
+  // The state id which can be any of: "head" (canonical head in node's view),
+  // "genesis", "finalized", "justified", <slot>, <hex encoded stateRoot with 0x prefix>.
+  bytes state_id = 1;
+}
+
 message BeaconStateResponse {
   BeaconState data = 1;
 }

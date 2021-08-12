@@ -108,7 +108,7 @@ message SyncCommitteeContribution {
   bytes signature = 5 [(ethereum.eth.ext.ssz_size) = "96"];
 }
 
-message PublishContributionAndProofsRequest {
+message SubmitContributionAndProofsRequest {
     SignedContributionAndProof message = 1;
 }
 
