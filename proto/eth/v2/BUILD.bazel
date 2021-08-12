@@ -33,10 +33,11 @@ ssz_gen_marshal(
     go_proto = ":go_proto",
     includes = [
         "@com_github_prysmaticlabs_eth2_types//:go_default_library",
+        "//proto/prysm/v1alpha1:go_default_library",
     ],
     objs = [
-        "BeaconBlockContainer",
-        "BeaconState",
+        "BeaconBlockContainerAlatir",
+        "BeaconStateAltair",
         "ContributionAndProof",
         "SignedContributionAndProof",
         "SyncCommittee",
@@ -59,6 +60,19 @@ go_proto_library(
     deps = [
         "//proto/eth/v1:go_default_library",
         "//proto/prysm/v1alpha1:go_default_library",
+        "//proto/eth/ext:go_default_library",
+        "@io_bazel_rules_go//proto/wkt:descriptor_go_proto",
+        "@com_github_golang_protobuf//proto:go_default_library",
+        "@io_bazel_rules_go//proto/wkt:empty_go_proto",
+        "@io_bazel_rules_go//proto/wkt:timestamp_go_proto",
+        "@com_github_prysmaticlabs_go_bitfield//:go_default_library",  # keep
+        "@com_github_prysmaticlabs_eth2_types//:go_default_library",
+        "@go_googleapis//google/api:annotations_go_proto",
+        "@org_golang_google_protobuf//reflect/protoreflect:go_default_library",
+        "@org_golang_google_protobuf//runtime/protoimpl:go_default_library",
+        "@org_golang_google_protobuf//types/descriptorpb:go_default_library",
+        "@org_golang_google_protobuf//types/known/timestamppb:go_default_library",
+        "@com_github_grpc_ecosystem_grpc_gateway_v2//proto/gateway:go_default_library",
     ],
 )
 

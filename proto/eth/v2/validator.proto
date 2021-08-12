@@ -45,7 +45,7 @@ message SyncCommitteeDuty {
   uint64 validator_index = 2 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
 
   // The indices of the validator in the sync committee.
-  repeated uint64 sync_committee_indices = 3 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
+  repeated uint64 sync_committee_indices = 3 [(ethereum.eth.ext.ssz_size) = "512", (ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
 }
 
 message ProduceBlockRequest {
@@ -73,7 +73,7 @@ message SyncCommitteeSubscription {
   uint64 validator_index = 1 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
 
   // The sync committee indices to be subscribed to.
-  repeated uint64 sync_committee_indices = 2  [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.CommitteeIndex"];
+  repeated uint64 sync_committee_indices = 2  [(ethereum.eth.ext.ssz_max) = "1099511627776", (ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.CommitteeIndex"];
 
   // The final epoch that the specified validator requires the subscription for.
   uint64 until_epoch = 3 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Epoch"];
@@ -91,11 +91,11 @@ message ProduceSyncCommitteeContributionRequest {
 }
 
 message ProduceSyncCommitteeContributionResponse {
-    SyncCommitteeContribution data = 1;
+    SyncCommitteeContributionV2 data = 1;
 }
 
 // Aggregated sync committee object to support light client.
-message SyncCommitteeContribution {
+message SyncCommitteeContributionV2 {
   // Slot to which this contribution pertains.
   uint64 slot = 1 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Slot"];
 
@@ -107,30 +107,30 @@ message SyncCommitteeContribution {
 
   // A bit is set if a signature from the validator at the corresponding
   // index in the subcommittee is present in the aggregate `signature`.
-  // bytes aggregation_bits = 4 [(ethereum.eth.ext.ssz_size) = "sync_committee_aggregate_bytes.size", (ethereum.eth.ext.cast_type) = "sync_committee_aggregate_bits.type"];
+  bytes aggregation_bits = 4 [(ethereum.eth.ext.ssz_size) = "sync_committee_aggregate_bytes.size", (ethereum.eth.ext.cast_type) = "sync_committee_aggregate_bits.type"];
 
   // Signature by the validator(s) over the block root of `slot`.
   bytes signature = 5 [(ethereum.eth.ext.ssz_size) = "96"];
 }
 
 message SubmitContributionAndProofsRequest {
-    SignedContributionAndProof message = 1;
+    SignedContributionAndProofV2 message = 1;
 }
 
 // Aggregated sync committee signature object with selection proof to support light client.
-message ContributionAndProof {
+message ContributionAndProofV2 {
   // Index of the aggregator that produced this proof.
   uint64 aggregator_index = 1 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
 
-  SyncCommitteeContribution contribution = 2;
+  SyncCommitteeContributionV2 contribution = 2;
 
   // The selection proof itself.
   bytes selection_proof = 3 [(ethereum.eth.ext.ssz_size) = "96"];
 }
 
 // Signed aggregated sync committee signature object with selection proof to support light client.
-message SignedContributionAndProof {
-  ContributionAndProof message = 1;
+message SignedContributionAndProofV2 {
+  ContributionAndProofV2 message = 1;
 
   // Signature of the aggregator that produced `message`.
   bytes signature = 4 [(ethereum.eth.ext.ssz_size) = "96"];
