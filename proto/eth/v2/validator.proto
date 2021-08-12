@@ -38,8 +38,13 @@ message SyncCommitteeDutiesResponse {
 }
 
 message SyncCommitteeDuty {
+  // The validator's BLS public key, uniquely identifying them.
   bytes pubkey = 1 [(ethereum.eth.ext.ssz_size) = "48"];
+
+  // Index of validator in validator registry.
   uint64 validator_index = 2 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
+
+  // The indices of the validator in the sync committee.
   repeated uint64 sync_committee_indices = 3 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
 }
 
