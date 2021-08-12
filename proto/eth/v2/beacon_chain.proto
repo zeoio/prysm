@@ -25,7 +25,7 @@ option java_outer_classname = "SyncCommitteeProto";
 option java_package = "org.ethereum.eth.v2";
 option php_namespace = "Ethereum\\Eth\\v2";
 
-message SubmitSyncCommitteeRequest {
+message SubmitSyncCommitteeSignaturesRequest {
   repeated SyncCommitteeMessage data = 1;
 }
 

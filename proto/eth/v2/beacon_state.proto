@@ -73,3 +73,11 @@ message BeaconState {
   v1alpha1.SyncCommittee current_sync_committee = 23; // [New in Altair]
   v1alpha1.SyncCommittee next_sync_committee = 24; // [New in Altair]
 }
+
+message BeaconStateResponse {
+  BeaconState data = 1;
+}
+
+message BeaconStateSSZResponse {
+  bytes data = 1;
+}
