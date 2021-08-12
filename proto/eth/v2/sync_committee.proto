@@ -24,6 +24,25 @@ option java_outer_classname = "SyncCommitteeProto";
 option java_package = "org.ethereum.eth.v2";
 option php_namespace = "Ethereum\\Eth\\v2";
 
+message SubmitSyncCommitteeSignaturesRequest {
+  repeated SyncCommitteeMessage data = 1;
+}
+
+// Sync committee object to support light client.
+message SyncCommitteeMessage {
+  // Slot to which this contribution pertains.
+  uint64 slot = 1 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Slot"];
+
+  // 32 byte block root for this signature.
+  bytes beacon_block_root = 2 [(ethereum.eth.ext.ssz_size) = "32"];
+
+  // Index of the validator that produced this signature.
+  uint64 validator_index = 3 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
+
+  // Signature by the validator over the block root of `slot`.
+  bytes signature = 4 [(ethereum.eth.ext.ssz_size) = "96"];
+}
+
 message StateSyncCommitteesRequest {
   // The state id which can be any of: "head" (canonical head in node's view),
   // "genesis", "finalized", "justified", <slot>, <hex encoded stateRoot with 0x prefix>.
@@ -35,14 +54,17 @@ message StateSyncCommitteesRequest {
 }
 
 message StateSyncCommitteesResponse {
-  SyncCommitteeContainer data = 1;
+  SyncCommittee data = 1;
 }
 
-message SyncCommitteeContainer {
+message SyncCommittee {
+  // All of the validator indices in the current sync committee.
   repeated uint64 validators = 1 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
+
   repeated SyncSubcommittee validator_aggregates = 2;
 }
 
 message SyncSubcommittee {
+  // Subcommittee slices of the current sync committee.
   repeated uint64 validators = 1 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.ValidatorIndex"];
 }

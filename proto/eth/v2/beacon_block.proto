@@ -32,6 +32,13 @@ message BlockRequest {
 }
 
 message BlockResponse {
-  v1alpha1.BeaconBlockAltair data = 1;
+  BeaconBlockContainer data = 1;
+}
+
+message BeaconBlockContainer {
+  // The unsigned beacon block.
+  v1alpha1.BeaconBlockAltair message = 1;
+
+  // 96 byte BLS signature from the validator that produced this block.
   bytes signature = 2 [(ethereum.eth.ext.ssz_size) = "96"];
 }
