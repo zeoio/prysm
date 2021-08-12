@@ -20,7 +20,7 @@ import "google/protobuf/descriptor.proto";
 import "google/protobuf/empty.proto";
 
 import "proto/eth/v1/beacon_chain.proto";
-import "proto/eth/v1/beacon_debug.proto";
+import "proto/eth/v1/beacon_state.proto";
 
 option csharp_namespace = "Ethereum.Eth.Service";
 option go_package = "github.com/prysmaticlabs/prysm/proto/eth/service";

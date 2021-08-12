@@ -92,3 +92,20 @@ message Fork {
   bytes current_version = 2 [(ethereum.eth.ext.ssz_size) = "4"];
   uint64 epoch = 3 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Epoch"];
 }
+
+message ForkChoiceHeadsResponse {
+  repeated ForkChoiceHead data = 1;
+}
+
+message ForkChoiceHead {
+  bytes root = 1 [(ethereum.eth.ext.ssz_size) = "32"];
+  uint64 slot = 2 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/eth2-types.Slot"];
+}
+
+message BeaconStateResponse {
+  BeaconState data = 1;
+}
+
+message BeaconStateSSZResponse {
+  bytes data = 1;
+}
