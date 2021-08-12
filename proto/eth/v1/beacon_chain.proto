@@ -211,7 +211,6 @@ message BlockSSZResponse {
 }
 
 message BeaconBlockContainer {
-  // The unsigned beacon block.
   BeaconBlock message = 1;
 
   // 96 byte BLS signature from the validator that produced this block.
