@@ -14,8 +14,7 @@ import (
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	statepb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	validatorpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
 	"github.com/prysmaticlabs/prysm/shared/bls"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/event"
@@ -154,7 +153,7 @@ func TestAttestToBlockHead_AttestsCorrectly(t *testing.T) {
 	root, err := helpers.ComputeSigningRoot(expectedAttestation.Data, make([]byte, 32))
 	require.NoError(t, err)
 
-	sig, err := validator.keyManager.Sign(context.Background(), &validatorpb.SignRequest{
+	sig, err := validator.keyManager.Sign(context.Background(), &ethpb.SignRequest{
 		PublicKey:   validatorKey.PublicKey().Marshal(),
 		SigningRoot: root[:],
 	})
@@ -448,7 +447,7 @@ func TestSignAttestation(t *testing.T) {
 	secretKey, err := bls.SecretKeyFromBytes(bytesutil.PadTo([]byte{1}, 32))
 	require.NoError(t, err, "Failed to generate key from bytes")
 	publicKey := secretKey.PublicKey()
-	wantedFork := &statepb.Fork{
+	wantedFork := &ethpb.Fork{
 		PreviousVersion: []byte{'a', 'b', 'c', 'd'},
 		CurrentVersion:  []byte{'d', 'e', 'f', 'f'},
 		Epoch:           0,
@@ -538,9 +537,11 @@ func TestServer_WaitToSlotOneThird_ReceiveBlockSlot(t *testing.T) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		v.blockFeed.Send(&ethpb.SignedBeaconBlock{
-			Block: &ethpb.BeaconBlock{Slot: currentSlot},
-		})
+		time.Sleep(100 * time.Millisecond)
+		v.blockFeed.Send(wrapper.WrappedPhase0SignedBeaconBlock(
+			&ethpb.SignedBeaconBlock{
+				Block: &ethpb.BeaconBlock{Slot: currentSlot},
+			}))
 		wg.Done()
 	}()
 

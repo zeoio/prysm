@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/epoch/precompute"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
@@ -216,76 +217,60 @@ func AttestationsDelta(state state.BeaconStateAltair, bal *precompute.Balance, v
 	prevEpoch := helpers.PrevEpoch(state)
 	finalizedEpoch := state.FinalizedCheckpointEpoch()
 
-	cfg := params.BeaconConfig()
-	increment := cfg.EffectiveBalanceIncrement
-	factor := cfg.BaseRewardFactor
-	baseRewardMultiplier := increment * factor / mathutil.IntegerSquareRoot(bal.ActiveCurrentEpoch)
-	leak := helpers.IsInInactivityLeak(prevEpoch, finalizedEpoch)
-	inactivityDenominator := cfg.InactivityScoreBias * cfg.InactivityPenaltyQuotientAltair
-
 	for i, v := range vals {
-		rewards[i], penalties[i] = attestationDelta(bal, v, baseRewardMultiplier, inactivityDenominator, leak)
+		rewards[i], penalties[i] = attestationDelta(bal, v, prevEpoch, finalizedEpoch)
 	}
 
 	return rewards, penalties, nil
 }
 
-func attestationDelta(
-	bal *precompute.Balance,
-	v *precompute.Validator,
-	baseRewardMultiplier, inactivityDenominator uint64,
-	inactivityLeak bool) (reward, penalty uint64) {
+func attestationDelta(bal *precompute.Balance, v *precompute.Validator, prevEpoch, finalizedEpoch types.Epoch) (r, p uint64) {
 	eligible := v.IsActivePrevEpoch || (v.IsSlashed && !v.IsWithdrawableCurrentEpoch)
-	// Per spec `ActiveCurrentEpoch` can't be 0 to process attestation delta.
 	if !eligible || bal.ActiveCurrentEpoch == 0 {
 		return 0, 0
 	}
 
-	cfg := params.BeaconConfig()
-	increment := cfg.EffectiveBalanceIncrement
-	effectiveBalance := v.CurrentEpochEffectiveBalance
-	baseReward := (effectiveBalance / increment) * baseRewardMultiplier
-	activeIncrement := bal.ActiveCurrentEpoch / increment
+	ebi := params.BeaconConfig().EffectiveBalanceIncrement
+	eb := v.CurrentEpochEffectiveBalance
+	br := (eb / ebi) * (ebi * params.BeaconConfig().BaseRewardFactor / mathutil.IntegerSquareRoot(bal.ActiveCurrentEpoch))
+	activeCurrentEpochIncrements := bal.ActiveCurrentEpoch / ebi
 
-	weightDenominator := cfg.WeightDenominator
-	srcWeight := cfg.TimelySourceWeight
-	tgtWeight := cfg.TimelyTargetWeight
-	headWeight := cfg.TimelyHeadWeight
-	reward, penalty = uint64(0), uint64(0)
+	r, p = uint64(0), uint64(0)
 	// Process source reward / penalty
 	if v.IsPrevEpochAttester && !v.IsSlashed {
-		if !inactivityLeak {
-			n := baseReward * srcWeight * (bal.PrevEpochAttested / increment)
-			reward += n / (activeIncrement * weightDenominator)
+		if !helpers.IsInInactivityLeak(prevEpoch, finalizedEpoch) {
+			rewardNumerator := br * params.BeaconConfig().TimelySourceWeight * (bal.PrevEpochAttested / ebi)
+			r += rewardNumerator / (activeCurrentEpochIncrements * params.BeaconConfig().WeightDenominator)
 		}
 	} else {
-		penalty += baseReward * srcWeight / weightDenominator
+		p += br * params.BeaconConfig().TimelySourceWeight / params.BeaconConfig().WeightDenominator
 	}
 
 	// Process target reward / penalty
 	if v.IsPrevEpochTargetAttester && !v.IsSlashed {
-		if !inactivityLeak {
-			n := baseReward * tgtWeight * (bal.PrevEpochTargetAttested / increment)
-			reward += n / (activeIncrement * weightDenominator)
+		if !helpers.IsInInactivityLeak(prevEpoch, finalizedEpoch) {
+			rewardNumerator := br * params.BeaconConfig().TimelyTargetWeight * (bal.PrevEpochTargetAttested / ebi)
+			r += rewardNumerator / (activeCurrentEpochIncrements * params.BeaconConfig().WeightDenominator)
 		}
 	} else {
-		penalty += baseReward * tgtWeight / weightDenominator
+		p += br * params.BeaconConfig().TimelyTargetWeight / params.BeaconConfig().WeightDenominator
 	}
 
 	// Process head reward / penalty
 	if v.IsPrevEpochHeadAttester && !v.IsSlashed {
-		if !inactivityLeak {
-			n := baseReward * headWeight * (bal.PrevEpochHeadAttested / increment)
-			reward += n / (activeIncrement * weightDenominator)
+		if !helpers.IsInInactivityLeak(prevEpoch, finalizedEpoch) {
+			rewardNumerator := br * params.BeaconConfig().TimelyHeadWeight * (bal.PrevEpochHeadAttested / ebi)
+			r += rewardNumerator / (activeCurrentEpochIncrements * params.BeaconConfig().WeightDenominator)
 		}
 	}
 
 	// Process finality delay penalty
-	// Apply an additional penalty to validators that did not vote on the correct target or slashed
+	// Apply an additional penalty to validators that did not vote on the correct target or slashed.
 	if !v.IsPrevEpochTargetAttester || v.IsSlashed {
-		n := effectiveBalance * v.InactivityScore
-		penalty += n / inactivityDenominator
+		penaltyNumerator := eb * v.InactivityScore
+		penaltyDenominator := params.BeaconConfig().InactivityScoreBias * params.BeaconConfig().InactivityPenaltyQuotientAltair
+		p += penaltyNumerator / penaltyDenominator
 	}
 
-	return reward, penalty
+	return r, p
 }

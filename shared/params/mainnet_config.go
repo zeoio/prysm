@@ -19,6 +19,8 @@ func UseMainnetConfig() {
 }
 
 const (
+	// Genesis Fork Epoch for the mainnet config.
+	genesisForkEpoch = 0
 	// Altair Fork Epoch for mainnet config.
 	// Placeholder until fork epoch is decided.
 	mainnetAltairForkEpoch = math.MaxUint64
@@ -184,13 +186,13 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 	SafetyDecay: 10,
 
 	// Fork related values.
-	GenesisForkVersion:  []byte{0, 0, 0, 0},
-	AltairForkVersion:   []byte{1, 0, 0, 0},
-	NextForkVersion:     []byte{1, 0, 0, 0}, // Set to altair fork version.
-	AltairForkEpoch:     mainnetAltairForkEpoch,
-	NextForkEpoch:       mainnetAltairForkEpoch, // Set to altair fork epoch.
-	ForkVersionSchedule: map[types.Epoch][]byte{
-		// TODO(): To be updated for Altair.
+	GenesisForkVersion: []byte{0, 0, 0, 0},
+	AltairForkVersion:  []byte{1, 0, 0, 0},
+	AltairForkEpoch:    mainnetAltairForkEpoch,
+	ForkVersionSchedule: map[[4]byte]types.Epoch{
+		{0, 0, 0, 0}: genesisForkEpoch,
+		{1, 0, 0, 0}: mainnetAltairForkEpoch,
+		// Any further forks must be specified here by their epoch number.
 	},
 
 	// New values introduced in Altair hard fork 1.
@@ -208,7 +210,7 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 	WeightDenominator:  64,
 
 	// Validator related values.
-	TargetAggregatorsPerSyncSubcommittee: 4,
+	TargetAggregatorsPerSyncSubcommittee: 16,
 	SyncCommitteeSubnetCount:             4,
 
 	// Misc values.

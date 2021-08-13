@@ -30,7 +30,7 @@ func TestFieldTrie_NewTrie(t *testing.T) {
 func TestFieldTrie_RecomputeTrie(t *testing.T) {
 	newState, _ := testutil.DeterministicGenesisState(t, 32)
 	// 10 represents the enum value of validators
-	trie, err := fieldtrie.NewFieldTrie(11, stateTypes.CompositeArray, newState.Validators(), params.BeaconConfig().ValidatorRegistryLimit)
+	trie, err := statealtair.NewFieldTrie(11, newState.Validators(), params.BeaconConfig().ValidatorRegistryLimit)
 	require.NoError(t, err)
 
 	changedIdx := []uint64{2, 29}

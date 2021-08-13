@@ -193,11 +193,39 @@ func TestProcessRewardsAndPenaltiesPrecompute_InactivityLeak(t *testing.T) {
 
 	balances := s.Balances()
 	inactivityBalances := sCopy.Balances()
-	// Balances decreased to 0 due to inactivity
-	require.Equal(t, uint64(2101898), balances[2])
-	require.Equal(t, uint64(2414946), balances[3])
-	require.Equal(t, uint64(0), inactivityBalances[2])
-	require.Equal(t, uint64(0), inactivityBalances[3])
+	// Balances should be much less in inactivity leak cases.
+	for i := 0; i < len(balances); i++ {
+		require.Equal(t, true, balances[i] >= inactivityBalances[i])
+	}
+}
+
+func TestProcessRewardsAndPenaltiesPrecompute_GenesisEpoch(t *testing.T) {
+	s, err := testState()
+	require.NoError(t, err)
+	validators, balance, err := InitializeEpochValidators(context.Background(), s)
+	require.NoError(t, err)
+	validators, balance, err = ProcessEpochParticipation(context.Background(), s, balance, validators)
+	require.NoError(t, err)
+	require.NoError(t, s.SetSlot(0))
+	s, err = ProcessRewardsAndPenaltiesPrecompute(s, balance, validators)
+	require.NoError(t, err)
+
+	balances := s.Balances()
+	// Nothing should happen at genesis epoch
+	for i := 1; i < len(balances); i++ {
+		require.Equal(t, true, balances[i] == balances[i-1])
+	}
+}
+
+func TestProcessRewardsAndPenaltiesPrecompute_BadState(t *testing.T) {
+	s, err := testState()
+	require.NoError(t, err)
+	validators, balance, err := InitializeEpochValidators(context.Background(), s)
+	require.NoError(t, err)
+	_, balance, err = ProcessEpochParticipation(context.Background(), s, balance, validators)
+	require.NoError(t, err)
+	_, err = ProcessRewardsAndPenaltiesPrecompute(s, balance, []*precompute.Validator{})
+	require.ErrorContains(t, "validator registries not the same length as state's validator registries", err)
 }
 
 func TestProcessInactivityScores_CanProcessInactivityLeak(t *testing.T) {

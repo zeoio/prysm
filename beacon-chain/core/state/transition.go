@@ -11,16 +11,56 @@ import (
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/cache"
+	"github.com/prysmaticlabs/prysm/beacon-chain/core/altair"
+	b "github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
 	e "github.com/prysmaticlabs/prysm/beacon-chain/core/epoch"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/epoch/precompute"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
+	v "github.com/prysmaticlabs/prysm/beacon-chain/core/validators"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
 	"github.com/prysmaticlabs/prysm/shared/mathutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/traceutil"
+	"github.com/prysmaticlabs/prysm/shared/version"
 	"go.opencensus.io/trace"
 )
+
+// processFunc is a function that processes a block with a given state. State is mutated.
+type processFunc func(context.Context, state.BeaconState, block.SignedBeaconBlock) (state.BeaconState, error)
+
+var processDepositsFunc = func(ctx context.Context, s state.BeaconState, blk block.SignedBeaconBlock) (state.BeaconState, error) {
+	return b.ProcessDeposits(ctx, s, blk.Block().Body().Deposits())
+}
+var processProposerSlashingFunc = func(ctx context.Context, s state.BeaconState, blk block.SignedBeaconBlock) (state.BeaconState, error) {
+	return b.ProcessProposerSlashings(ctx, s, blk.Block().Body().ProposerSlashings(), v.SlashValidator)
+}
+
+var processAttesterSlashingFunc = func(ctx context.Context, s state.BeaconState, blk block.SignedBeaconBlock) (state.BeaconState, error) {
+	return b.ProcessAttesterSlashings(ctx, s, blk.Block().Body().AttesterSlashings(), v.SlashValidator)
+}
+
+var processEth1DataFunc = func(ctx context.Context, s state.BeaconState, blk block.SignedBeaconBlock) (state.BeaconState, error) {
+	return b.ProcessEth1DataInBlock(ctx, s, blk.Block().Body().Eth1Data())
+}
+
+var processExitFunc = func(ctx context.Context, s state.BeaconState, blk block.SignedBeaconBlock) (state.BeaconState, error) {
+	return b.ProcessVoluntaryExits(ctx, s, blk.Block().Body().VoluntaryExits())
+}
+
+// This defines the processing block routine as outlined in the Ethereum Beacon Chain spec:
+// https://github.com/ethereum/eth2.0-specs/blob/dev/specs/phase0/beacon-chain.md#block-processing
+var processingPipeline = []processFunc{
+	b.ProcessBlockHeader,
+	b.ProcessRandao,
+	processEth1DataFunc,
+	VerifyOperationLengths,
+	processProposerSlashingFunc,
+	processAttesterSlashingFunc,
+	b.ProcessAttestations,
+	processDepositsFunc,
+	processExitFunc,
+}
 
 // ExecuteStateTransition defines the procedure for a state transition function.
 //
@@ -183,7 +223,7 @@ func ProcessSlots(ctx context.Context, state state.BeaconState, slot types.Slot)
 	}
 
 	highestSlot := state.Slot()
-	key, err := cacheKey(ctx, state)
+	key, err := CacheKey(ctx, state)
 	if err != nil {
 		return nil, err
 	}
@@ -234,15 +274,34 @@ func ProcessSlots(ctx context.Context, state state.BeaconState, slot types.Slot)
 			return nil, errors.Wrap(err, "could not process slot")
 		}
 		if CanProcessEpoch(state) {
-			state, err = ProcessEpochPrecompute(ctx, state)
-			if err != nil {
-				traceutil.AnnotateError(span, err)
-				return nil, errors.Wrap(err, "could not process epoch with optimizations")
+			switch state.Version() {
+			case version.Phase0:
+				state, err = ProcessEpochPrecompute(ctx, state)
+				if err != nil {
+					traceutil.AnnotateError(span, err)
+					return nil, errors.Wrap(err, "could not process epoch with optimizations")
+				}
+			case version.Altair:
+				state, err = altair.ProcessEpoch(ctx, state)
+				if err != nil {
+					traceutil.AnnotateError(span, err)
+					return nil, errors.Wrap(err, "could not process epoch")
+				}
+			default:
+				return nil, errors.New("beacon state should have a version")
 			}
 		}
 		if err := state.SetSlot(state.Slot() + 1); err != nil {
 			traceutil.AnnotateError(span, err)
 			return nil, errors.Wrap(err, "failed to increment state slot")
+		}
+
+		// Transition to Altair state.
+		if helpers.IsEpochStart(state.Slot()) && helpers.SlotToEpoch(state.Slot()) == params.BeaconConfig().AltairForkEpoch {
+			state, err = altair.UpgradeToAltair(ctx, state)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -250,6 +309,40 @@ func ProcessSlots(ctx context.Context, state state.BeaconState, slot types.Slot)
 		if err := SkipSlotCache.Put(ctx, key, state); err != nil {
 			log.WithError(err).Error("Failed to put skip slot cache value")
 			traceutil.AnnotateError(span, err)
+		}
+	}
+
+	return state, nil
+}
+
+// ProcessBlock creates a new, modified beacon state by applying block operation
+// transformations as defined in the Ethereum Serenity specification, including processing proposer slashings,
+// processing block attestations, and more.
+//
+// Spec pseudocode definition:
+//
+//  def process_block(state: BeaconState, block: BeaconBlock) -> None:
+//    process_block_header(state, block)
+//    process_randao(state, block.body)
+//    process_eth1_data(state, block.body)
+//    process_operations(state, block.body)
+func ProcessBlock(
+	ctx context.Context,
+	state state.BeaconState,
+	signed block.SignedBeaconBlock,
+) (state.BeaconState, error) {
+	ctx, span := trace.StartSpan(ctx, "core.state.ProcessBlock")
+	defer span.End()
+
+	var err error
+	if err = helpers.VerifyNilBeaconBlock(signed); err != nil {
+		return nil, err
+	}
+
+	for _, p := range processingPipeline {
+		state, err = p(ctx, state, signed)
+		if err != nil {
+			return nil, errors.Wrap(err, "Could not process block")
 		}
 	}
 
