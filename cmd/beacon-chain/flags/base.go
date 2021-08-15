@@ -170,6 +170,12 @@ var (
 			"If such a sync is not possible, the node will treat it a critical and irrecoverable failure",
 		Value: "",
 	}
+	// GenesisStatePath defines a flag to start the beacon chain from a give genesis state file.
+	WeakSubjectivityCheckpointState = &cli.StringFlag{
+		Name: "weak-subjectivity-checkpoint-state",
+		Usage: "Load the BeaconState for the most recent weak subjectivity checkpoint from a file. " +
+			"Set it as most recent finalized block so that syncing will proceed from the checkpoint (instead of genesis).",
+	}
 	// Eth1HeaderReqLimit defines a flag to set the maximum number of headers that a deposit log query can fetch. If none is set, 1000 will be the limit.
 	Eth1HeaderReqLimit = &cli.Uint64Flag{
 		Name:  "eth1-header-req-limit",

@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -88,6 +89,21 @@ type BeaconState struct {
 	valMapHandler         *stateutil.ValidatorMapHandler
 	merkleLayers          [][][]byte
 	sharedFieldReferences map[fieldIndex]*stateutil.Reference
+}
+
+func (bs *BeaconState) Equal(ctx context.Context, other state.BeaconState) (bool, error) {
+	if other == nil || other.IsNil() {
+		return false, nil
+	}
+	bsr, err := bs.HashTreeRoot(ctx)
+	if err != nil {
+		return false, err
+	}
+	osr, err := other.HashTreeRoot(ctx)
+	if err != nil {
+		return false, err
+	}
+	return osr == bsr, nil
 }
 
 // String returns the name of the field index.

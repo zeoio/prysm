@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"flag"
 	"fmt"
+	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
 
 	types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/state/interop"
@@ -37,10 +39,21 @@ func main() {
 	if len(roots) != 1 {
 		fmt.Printf("Expected 1 block root for slot %d, got %d roots", *state, len(roots))
 	}
-	s, err := d.State(ctx, roots[0])
+	var blockRoot [32]byte = roots[0]
+	dst := make([]byte, hex.EncodedLen(len(blockRoot)))
+	hex.Encode(dst, blockRoot[:])
+	fmt.Printf("root for slot %d = %s\n", slot, string(dst))
+	stateGen := stategen.New(d)
+	s, err := stateGen.StateByRoot(ctx, blockRoot)
 	if err != nil {
 		panic(err)
 	}
+	/*
+	s, err := d.State(ctx, stateRoot)
+	if err != nil {
+		panic(err)
+	}
+	*/
 
 	interop.WriteStateToDisk(s)
 	fmt.Println("done")

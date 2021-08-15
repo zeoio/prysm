@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
-
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
 	dbIface "github.com/prysmaticlabs/prysm/beacon-chain/db/iface"
@@ -15,6 +12,7 @@ import (
 	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
 	"github.com/prysmaticlabs/prysm/shared/params"
+	"io"
 )
 
 // SaveGenesisData bootstraps the beaconDB with a given genesis state.
@@ -52,43 +50,29 @@ func (s *Store) SaveGenesisData(ctx context.Context, genesisState state.BeaconSt
 
 // LoadGenesis loads a genesis state from a given file path, if no genesis exists already.
 func (s *Store) LoadGenesis(ctx context.Context, r io.Reader) error {
-	b, err := ioutil.ReadAll(r)
+	gs, err := statev1.InitializeFromSSZReader(r)
 	if err != nil {
 		return err
-	}
-	st := &ethpb.BeaconState{}
-	if err := st.UnmarshalSSZ(b); err != nil {
-		return err
-	}
-	gs, err := statev1.InitializeFromProtoUnsafe(st)
-	if err != nil {
-		return err
-	}
-	existing, err := s.GenesisState(ctx)
-	if err != nil {
-		return err
-	}
-	// If some different genesis state existed already, return an error. The same genesis state is
-	// considered a no-op.
-	if existing != nil && !existing.IsNil() {
-		a, err := existing.HashTreeRoot(ctx)
-		if err != nil {
-			return err
-		}
-		b, err := gs.HashTreeRoot(ctx)
-		if err != nil {
-			return err
-		}
-		if a == b {
-			return nil
-		}
-		return dbIface.ErrExistingGenesisState
 	}
 
+	// bail out early if the fork version doesn't match built-in genesis fork version
 	if !bytes.Equal(gs.Fork().CurrentVersion, params.BeaconConfig().GenesisForkVersion) {
 		return fmt.Errorf("loaded genesis fork version (%#x) does not match config genesis "+
 			"fork version (%#x)", gs.Fork().CurrentVersion, params.BeaconConfig().GenesisForkVersion)
 	}
+
+	existing, err := s.GenesisState(ctx)
+	if err != nil {
+		return err
+	}
+	eq, err := gs.Equal(ctx, existing)
+	if err != nil {
+		return err
+	}
+	if eq {
+		return dbIface.ErrExistingGenesisState
+	}
+
 	return s.SaveGenesisData(ctx, gs)
 }
 

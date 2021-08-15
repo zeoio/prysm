@@ -324,6 +324,22 @@ func (b *BeaconNode) startDB(cliCtx *cli.Context, depositAddress string) error {
 		return err
 	}
 
+	if cliCtx.IsSet(flags.WeakSubjectivityCheckpointState.Name) {
+		fname := cliCtx.String(flags.WeakSubjectivityCheckpointState.Name)
+		r, err := os.Open(fname)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := r.Close(); err != nil {
+				log.WithError(err).Error(fmt.Sprintf("failed to close %s", fname))
+			}
+		}()
+		if err := b.db.SaveStateToHeadFromReader(b.ctx, r); err != nil {
+			return errors.Wrap(err, fmt.Sprintf("failed to save state to head using state in %s", fname))
+		}
+	}
+
 	knownContract, err := b.db.DepositContractAddress(b.ctx)
 	if err != nil {
 		return err

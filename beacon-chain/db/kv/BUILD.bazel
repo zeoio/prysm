@@ -25,6 +25,7 @@ go_library(
         "state_summary.go",
         "state_summary_cache.go",
         "utils.go",
+        "wss.go",
     ],
     importpath = "github.com/prysmaticlabs/prysm/beacon-chain/db/kv",
     visibility = [

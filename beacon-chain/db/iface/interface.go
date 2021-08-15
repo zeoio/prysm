@@ -105,6 +105,10 @@ type HeadAccessDatabase interface {
 	LoadGenesis(ctx context.Context, r io.Reader) error
 	SaveGenesisData(ctx context.Context, state state.BeaconState) error
 	EnsureEmbeddedGenesis(ctx context.Context) error
+
+	// Move Head to a given state.
+	SaveStateToHead(context.Context, state.BeaconState) error
+	SaveStateToHeadFromReader(context.Context, io.Reader) error
 }
 
 // SlasherDatabase interface for persisting data related to detecting slashable offenses on Ethereum.

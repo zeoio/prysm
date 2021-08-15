@@ -83,7 +83,13 @@ func (s *Service) syncToFinalizedEpoch(ctx context.Context, genesis time.Time) e
 	}
 
 	for data := range queue.fetchedData {
-		s.processFetchedData(ctx, genesis, s.cfg.Chain.HeadSlot(), data)
+		startSlot := s.cfg.Chain.HeadSlot()
+
+		// Use Batch Block Verify to process and verify batches directly.
+		if err := s.processBatchedBlocks(ctx, genesis, data.blocks, s.cfg.Chain.ReceiveBlockBatch); err != nil {
+			log.WithError(err).Warn("Batch is not processed")
+		}
+		s.updatePeerScorerStats(data.pid, startSlot)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -111,7 +117,30 @@ func (s *Service) syncToNonFinalizedEpoch(ctx context.Context, genesis time.Time
 		return err
 	}
 	for data := range queue.fetchedData {
-		s.processFetchedDataRegSync(ctx, genesis, s.cfg.Chain.HeadSlot(), data)
+		startSlot := s.cfg.Chain.HeadSlot()
+
+		blockReceiver := s.cfg.Chain.ReceiveBlock
+		invalidBlocks := 0
+		for _, blk := range data.blocks {
+			if err := s.processBlock(ctx, genesis, blk, blockReceiver); err != nil {
+				switch {
+				case errors.Is(err, errBlockAlreadyProcessed):
+					log.WithError(err).Debug("Block is not processed")
+					invalidBlocks++
+				case errors.Is(err, errParentDoesNotExist):
+					log.WithError(err).Debug("Block is not processed")
+					invalidBlocks++
+				default:
+					log.WithError(err).Warn("Block is not processed")
+				}
+				continue
+			}
+		}
+		// Add more visible logging if all blocks cannot be processed.
+		if len(data.blocks) == invalidBlocks {
+			log.WithField("error", "Range had no valid blocks to process").Warn("Range is not processed")
+		}
+		s.updatePeerScorerStats(data.pid, startSlot)
 	}
 	log.WithFields(logrus.Fields{
 		"syncedSlot": s.cfg.Chain.HeadSlot(),
@@ -122,45 +151,6 @@ func (s *Service) syncToNonFinalizedEpoch(ctx context.Context, genesis time.Time
 	}
 
 	return nil
-}
-
-// processFetchedData processes data received from queue.
-func (s *Service) processFetchedData(
-	ctx context.Context, genesis time.Time, startSlot types.Slot, data *blocksQueueFetchedData) {
-	defer s.updatePeerScorerStats(data.pid, startSlot)
-
-	// Use Batch Block Verify to process and verify batches directly.
-	if err := s.processBatchedBlocks(ctx, genesis, data.blocks, s.cfg.Chain.ReceiveBlockBatch); err != nil {
-		log.WithError(err).Warn("Batch is not processed")
-	}
-}
-
-// processFetchedData processes data received from queue.
-func (s *Service) processFetchedDataRegSync(
-	ctx context.Context, genesis time.Time, startSlot types.Slot, data *blocksQueueFetchedData) {
-	defer s.updatePeerScorerStats(data.pid, startSlot)
-
-	blockReceiver := s.cfg.Chain.ReceiveBlock
-	invalidBlocks := 0
-	for _, blk := range data.blocks {
-		if err := s.processBlock(ctx, genesis, blk, blockReceiver); err != nil {
-			switch {
-			case errors.Is(err, errBlockAlreadyProcessed):
-				log.WithError(err).Debug("Block is not processed")
-				invalidBlocks++
-			case errors.Is(err, errParentDoesNotExist):
-				log.WithError(err).Debug("Block is not processed")
-				invalidBlocks++
-			default:
-				log.WithError(err).Warn("Block is not processed")
-			}
-			continue
-		}
-	}
-	// Add more visible logging if all blocks cannot be processed.
-	if len(data.blocks) == invalidBlocks {
-		log.WithField("error", "Range had no valid blocks to process").Warn("Range is not processed")
-	}
 }
 
 // highestFinalizedEpoch returns the absolute highest finalized epoch of all connected peers.
