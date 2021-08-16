@@ -335,7 +335,7 @@ func (b *BeaconNode) startDB(cliCtx *cli.Context, depositAddress string) error {
 				log.WithError(err).Error(fmt.Sprintf("failed to close %s", fname))
 			}
 		}()
-		if err := b.db.SaveStateToHeadFromReader(b.ctx, r); err != nil {
+		if err := b.db.SaveWeakSubjectivityState(b.ctx, r); err != nil {
 			return errors.Wrap(err, fmt.Sprintf("failed to save state to head using state in %s", fname))
 		}
 	}

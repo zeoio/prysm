@@ -331,6 +331,35 @@ func (s *Store) SaveGenesisBlockRoot(ctx context.Context, blockRoot [32]byte) er
 	})
 }
 
+// WeakSubjectivityInitialBlockRoot retrieves the block root found in the initial state used to
+// sync from a BeaconState extracted from the first finalized block in the current weak subjectivity period.
+func (s *Store) WeakSubjectivityInitialBlockRoot(ctx context.Context) ([32]byte, error) {
+	ctx, span := trace.StartSpan(ctx, "BeaconDB.GenesisBlock")
+	defer span.End()
+	var blockRoot [32]byte
+	err := s.db.View(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket(blocksBucket)
+		root := bkt.Get(genesisBlockRootKey)
+		if root == nil {
+			return errors.New("value for WeakSubjectivityInitialBlockRoot not found")
+		}
+		copy(blockRoot[:], root)
+		return nil
+	})
+	return blockRoot, err
+}
+
+// SaveWeakSubjectivityInitialBlockRoot saves the latest block header from the weak subjectivity
+// initial sync state.
+func (s *Store) SaveWeakSubjectivityInitialBlockRoot(ctx context.Context, blockRoot [32]byte) error {
+	ctx, span := trace.StartSpan(ctx, "BeaconDB.SaveWeakSubjectivityInitialBlockRoot")
+	defer span.End()
+	return s.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(blocksBucket)
+		return bucket.Put(wssInitialBlockRootKey, blockRoot[:])
+	})
+}
+
 // HighestSlotBlocksBelow returns the block with the highest slot below the input slot from the db.
 func (s *Store) HighestSlotBlocksBelow(ctx context.Context, slot types.Slot) ([]block.SignedBeaconBlock, error) {
 	ctx, span := trace.StartSpan(ctx, "BeaconDB.HighestSlotBlocksBelow")

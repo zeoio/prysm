@@ -43,6 +43,7 @@ var (
 	justifiedCheckpointKey    = []byte("justified-checkpoint")
 	finalizedCheckpointKey    = []byte("finalized-checkpoint")
 	powchainDataKey           = []byte("powchain-data")
+	wssInitialBlockRootKey = []byte("wss-initial-block-root")
 
 	// Deprecated: This index key was migrated in PR 6461. Do not use, except for migrations.
 	lastArchivedIndexKey = []byte("last-archived")

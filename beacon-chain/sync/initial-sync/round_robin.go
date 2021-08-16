@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	p2pTypes "github.com/prysmaticlabs/prysm/beacon-chain/p2p/types"
+	prysmsync "github.com/prysmaticlabs/prysm/beacon-chain/sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -45,6 +47,10 @@ func (s *Service) roundRobinSync(genesis time.Time) error {
 
 	s.counter = ratecounter.NewRateCounter(counterSeconds * time.Second)
 
+	if err := s.weakSubjectivitySync(ctx, genesis); err != nil {
+		return err
+	}
+
 	// Step 1 - Sync to end of finalized epoch.
 	if err := s.syncToFinalizedEpoch(ctx, genesis); err != nil {
 		return err
@@ -58,6 +64,40 @@ func (s *Service) roundRobinSync(genesis time.Time) error {
 	// Step 2 - sync to head from majority of peers (from no less than MinimumSyncPeers*2 peers)
 	// having the same world view on non-finalized epoch.
 	return s.syncToNonFinalizedEpoch(ctx, genesis)
+}
+
+func (s *Service) weakSubjectivitySync(ctx context.Context, genesis time.Time) error {
+	blockRoot, err := s.cfg.DB.WeakSubjectivityInitialBlockRoot(ctx)
+	if err != nil {
+		return err
+	}
+	spb, err := s.cfg.DB.Block(ctx, blockRoot)
+	if err != nil {
+		return err
+	}
+	// block already exists, our work is done
+	if spb != nil {
+		return nil
+	}
+	req := &p2pTypes.BeaconBlockByRootsReq{blockRoot}
+	for _, pid := range s.cfg.P2P.Peers().Connected() {
+		sblocks, err := prysmsync.SendBeaconBlocksByRootRequest(ctx, s.cfg.Chain, s.cfg.P2P, pid, req, nil)
+		if err != nil || len(sblocks) == 0 {
+			continue
+		}
+		block := sblocks[0].Block()
+		foundHTR, err := block.HashTreeRoot()
+		if err != nil {
+			continue
+		}
+		if bytes.Equal(blockRoot[:], foundHTR[:]) {
+			if err := s.cfg.Chain.ReceiveBlock(ctx, sblocks[0], foundHTR); err != nil {
+				continue
+			}
+		}
+	}
+
+	return errors.New("could not retrieve WeakSubjectivityInitialBlockRoot from any peers via root")
 }
 
 // syncToFinalizedEpoch sync from head to best known finalized epoch.

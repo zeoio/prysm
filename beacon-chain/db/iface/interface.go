@@ -29,6 +29,7 @@ type ReadOnlyDatabase interface {
 	BlockRootsBySlot(ctx context.Context, slot types.Slot) (bool, [][32]byte, error)
 	HasBlock(ctx context.Context, blockRoot [32]byte) bool
 	GenesisBlock(ctx context.Context) (block.SignedBeaconBlock, error)
+	WeakSubjectivityInitialBlockRoot(ctx context.Context) ([32]byte, error)
 	IsFinalizedBlock(ctx context.Context, blockRoot [32]byte) bool
 	FinalizedChildBlock(ctx context.Context, blockRoot [32]byte) (block.SignedBeaconBlock, error)
 	HighestSlotBlocksBelow(ctx context.Context, slot types.Slot) ([]block.SignedBeaconBlock, error)
@@ -108,7 +109,7 @@ type HeadAccessDatabase interface {
 
 	// Move Head to a given state.
 	SaveStateToHead(context.Context, state.BeaconState) error
-	SaveStateToHeadFromReader(context.Context, io.Reader) error
+	SaveWeakSubjectivityState(context.Context, io.Reader) error
 }
 
 // SlasherDatabase interface for persisting data related to detecting slashable offenses on Ethereum.
