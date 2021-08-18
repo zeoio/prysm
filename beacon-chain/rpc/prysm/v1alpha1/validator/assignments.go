@@ -192,6 +192,24 @@ func (vs *Server) duties(ctx context.Context, req *ethpb.DutiesRequest) (*ethpb.
 	}, nil
 }
 
+func (vs *Server) randomStuff(genesis time.Time) {
+	ticker := slotutil.NewSlotTicker(genesis, params.BeaconConfig().SecondsPerSlot)
+	for {
+		select {
+		case slot := <-ticker.C():
+			randaoReveal := [96]byte{}
+			_, err := vs.GetBlock(context.Background(), &ethpb.BlockRequest{Slot: slot, Graffiti: bytesutil.Bytes32(0), RandaoReveal: randaoReveal[:]})
+			if err != nil {
+				log.Error(err)
+			} else {
+				log.Info("block prod successful")
+			}
+
+		}
+	}
+
+}
+
 // AssignValidatorToSubnet checks the status and pubkey of a particular validator
 // to discern whether persistent subnets need to be registered for them.
 func (vs *Server) AssignValidatorToSubnet(pubkey []byte, status ethpb.ValidatorStatus) {

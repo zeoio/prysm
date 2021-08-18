@@ -18,6 +18,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	core "github.com/prysmaticlabs/prysm/beacon-chain/core/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/state/interop"
+	"github.com/prysmaticlabs/prysm/beacon-chain/db/filters"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 	dbpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
 	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
@@ -62,19 +63,27 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 		return nil, status.Errorf(codes.Unavailable, "Syncing to latest head, not ready to respond")
 	}
 
-	// Retrieve the parent block as the current head of the canonical chain.
-	parentRoot, err := vs.HeadFetcher.HeadRoot(ctx)
+	//randSlot := mathrand.Intn(1800000)
+	//slot := types.Slot(randSlot / int(params.BeaconConfig().SlotsPerEpoch))
+	slot := types.Slot(1033704)
+	bState, err := vs.StateGen.StateBySlot(ctx, slot)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not retrieve head root: %v", err)
+		return nil, err
 	}
 
-	head, err := vs.HeadFetcher.HeadState(ctx)
+	blks, _, err := vs.BeaconDB.Blocks(ctx, filters.NewFilter().SetStartSlot(slot).SetEndSlot(slot))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not get head state %v", err)
+		return nil, err
 	}
+	parentRoot, err := blks[0].Block().HashTreeRoot()
+	if err != nil {
+		return nil, err
+	}
+	head := bState
+	req.Slot = bState.Slot() + 1
 
 	if featureconfig.Get().EnableNextSlotStateCache {
-		head, err = core.ProcessSlotsUsingNextSlotCache(ctx, head, parentRoot, req.Slot)
+		head, err = core.ProcessSlotsUsingNextSlotCache(ctx, head, parentRoot[:], req.Slot)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not advance slots to calculate proposer index: %v", err)
 		}
@@ -115,7 +124,7 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 
 	blk := &ethpb.BeaconBlock{
 		Slot:          req.Slot,
-		ParentRoot:    parentRoot,
+		ParentRoot:    parentRoot[:],
 		StateRoot:     stateRoot,
 		ProposerIndex: idx,
 		Body: &ethpb.BeaconBlockBody{
@@ -447,6 +456,9 @@ func (vs *Server) deposits(
 	var pendingDeposits []*ethpb.Deposit
 	for i := uint64(0); i < uint64(len(pendingDeps)) && i < params.BeaconConfig().MaxDeposits; i++ {
 		pendingDeposits = append(pendingDeposits, pendingDeps[i].Deposit)
+	}
+	for _, dc := range pendingDeposits {
+		log.Infof("dep hash %#x", dc.Data.PublicKey)
 	}
 	return pendingDeposits, nil
 }
