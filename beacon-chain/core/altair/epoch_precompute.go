@@ -101,7 +101,10 @@ func ProcessInactivityScores(
 				v.InactivityScore -= score
 			}
 		} else {
-			v.InactivityScore += bias
+			v.InactivityScore, err = mathutil.Add64(v.InactivityScore, bias)
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 
 		if !helpers.IsInInactivityLeak(helpers.PrevEpoch(state), state.FinalizedCheckpointEpoch()) {
@@ -227,7 +230,10 @@ func AttestationsDelta(state state.BeaconStateAltair, bal *precompute.Balance, v
 	inactivityDenominator := cfg.InactivityScoreBias * cfg.InactivityPenaltyQuotientAltair
 
 	for i, v := range vals {
-		rewards[i], penalties[i] = attestationDelta(bal, v, baseRewardMultiplier, inactivityDenominator, leak)
+		rewards[i], penalties[i], err = attestationDelta(bal, v, baseRewardMultiplier, inactivityDenominator, leak)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	return rewards, penalties, nil
@@ -237,11 +243,11 @@ func attestationDelta(
 	bal *precompute.Balance,
 	v *precompute.Validator,
 	baseRewardMultiplier, inactivityDenominator uint64,
-	inactivityLeak bool) (reward, penalty uint64) {
+	inactivityLeak bool) (reward, penalty uint64, err error) {
 	eligible := v.IsActivePrevEpoch || (v.IsSlashed && !v.IsWithdrawableCurrentEpoch)
 	// Per spec `ActiveCurrentEpoch` can't be 0 to process attestation delta.
 	if !eligible || bal.ActiveCurrentEpoch == 0 {
-		return 0, 0
+		return 0, 0, nil
 	}
 
 	cfg := params.BeaconConfig()
@@ -286,9 +292,12 @@ func attestationDelta(
 	// Process finality delay penalty
 	// Apply an additional penalty to validators that did not vote on the correct target or slashed
 	if !v.IsPrevEpochTargetAttester || v.IsSlashed {
-		n := effectiveBalance * v.InactivityScore
+		n, err := mathutil.Mul64(effectiveBalance, v.InactivityScore)
+		if err != nil {
+			return 0, 0, err
+		}
 		penalty += n / inactivityDenominator
 	}
 
-	return reward, penalty
+	return reward, penalty, nil
 }
