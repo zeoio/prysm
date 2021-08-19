@@ -179,7 +179,10 @@ func ProcessSlashings(state state.BeaconState) (state.BeaconState, error) {
 	slashings := state.Slashings()
 	totalSlashing := uint64(0)
 	for _, slashing := range slashings {
-		totalSlashing += slashing
+		totalSlashing, err = mathutil.Add64(totalSlashing, slashing)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// a callback is used here to apply the following actions  to all validators

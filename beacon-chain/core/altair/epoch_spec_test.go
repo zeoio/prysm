@@ -3,6 +3,7 @@ package altair_test
 import (
 	"context"
 	"fmt"
+	"math"
 	"testing"
 
 	types "github.com/prysmaticlabs/eth2-types"
@@ -106,6 +107,19 @@ func TestProcessSlashings_NotSlashed(t *testing.T) {
 	require.NoError(t, err)
 	wanted := params.BeaconConfig().MaxEffectiveBalance
 	assert.Equal(t, wanted, newState.Balances()[0], "Unexpected slashed balance")
+}
+
+func TestProcessSlashings_BadValue(t *testing.T) {
+	base := &ethpb.BeaconStateAltair{
+		Slot:       0,
+		Validators: []*ethpb.Validator{{Slashed: true}},
+		Balances:   []uint64{params.BeaconConfig().MaxEffectiveBalance},
+		Slashings:  []uint64{math.MaxUint64, 1e9},
+	}
+	s, err := stateAltair.InitializeFromProto(base)
+	require.NoError(t, err)
+	_, err = altair.ProcessSlashings(s)
+	require.ErrorContains(t, "addition overflows", err)
 }
 
 func TestProcessSlashings_SlashedLess(t *testing.T) {
