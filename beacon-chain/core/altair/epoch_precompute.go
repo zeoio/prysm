@@ -194,7 +194,10 @@ func ProcessRewardsAndPenaltiesPrecompute(
 
 		// Compute the post balance of the validator after accounting for the
 		// attester and proposer rewards and penalties.
-		balances[i] = helpers.IncreaseBalanceWithVal(balances[i], attsRewards[i])
+		balances[i], err = helpers.IncreaseBalanceWithVal(balances[i], attsRewards[i])
+		if err != nil {
+			return nil, err
+		}
 		balances[i] = helpers.DecreaseBalanceWithVal(balances[i], attsPenalties[i])
 
 		vals[i].AfterEpochTransitionBalance = balances[i]

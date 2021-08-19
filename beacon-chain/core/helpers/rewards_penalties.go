@@ -3,6 +3,7 @@ package helpers
 import (
 	types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/shared/mathutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
 )
 
@@ -77,7 +78,11 @@ func IncreaseBalance(state state.BeaconState, idx types.ValidatorIndex, delta ui
 	if err != nil {
 		return err
 	}
-	return state.UpdateBalancesAtIndex(idx, IncreaseBalanceWithVal(balAtIdx, delta))
+	newBal, err := IncreaseBalanceWithVal(balAtIdx, delta)
+	if err != nil {
+		return err
+	}
+	return state.UpdateBalancesAtIndex(idx, newBal)
 }
 
 // IncreaseBalanceWithVal increases validator with the given 'index' balance by 'delta' in Gwei.
@@ -90,8 +95,8 @@ func IncreaseBalance(state state.BeaconState, idx types.ValidatorIndex, delta ui
 //    Increase the validator balance at index ``index`` by ``delta``.
 //    """
 //    state.balances[index] += delta
-func IncreaseBalanceWithVal(currBalance, delta uint64) uint64 {
-	return currBalance + delta
+func IncreaseBalanceWithVal(currBalance, delta uint64) (uint64, error) {
+	return mathutil.Add64(currBalance, delta)
 }
 
 // DecreaseBalance decreases validator with the given 'index' balance by 'delta' in Gwei.

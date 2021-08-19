@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"math"
 	"testing"
 
 	types "github.com/prysmaticlabs/eth2-types"
@@ -108,6 +109,26 @@ func TestIncreaseBalance_OK(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, IncreaseBalance(state, test.i, test.nb))
 		assert.Equal(t, test.eb, state.Balances()[test.i], "Incorrect Validator balance")
+	}
+}
+
+func TestIncreaseBadBalance_NotOK(t *testing.T) {
+	tests := []struct {
+		i  types.ValidatorIndex
+		b  []uint64
+		nb uint64
+	}{
+		{i: 0, b: []uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64}, nb: 1},
+		{i: 2, b: []uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64}, nb: 33 * 1e9},
+	}
+	for _, test := range tests {
+		state, err := v1.InitializeFromProto(&ethpb.BeaconState{
+			Validators: []*ethpb.Validator{
+				{EffectiveBalance: 4}, {EffectiveBalance: 4}, {EffectiveBalance: 4}},
+			Balances: test.b,
+		})
+		require.NoError(t, err)
+		require.ErrorContains(t, "addition overflows", IncreaseBalance(state, test.i, test.nb))
 	}
 }
 
