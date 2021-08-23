@@ -227,9 +227,9 @@ func (s *Service) processBlock(
 	if err != nil {
 		return err
 	}
-	if s.isProcessedBlock(ctx, blk, blkRoot) {
-		return fmt.Errorf("slot: %d , root %#x: %w", blk.Block().Slot(), blkRoot, errBlockAlreadyProcessed)
-	}
+	//if s.isProcessedBlock(ctx, blk, blkRoot) {
+	//	return fmt.Errorf("slot: %d , root %#x: %w", blk.Block().Slot(), blkRoot, errBlockAlreadyProcessed)
+	//}
 
 	s.logSyncStatus(genesis, blk.Block(), blkRoot)
 	parentRoot := bytesutil.ToBytes32(blk.Block().ParentRoot())
