@@ -210,7 +210,7 @@ func (q *blocksQueue) loop() {
 			"headSlot":            q.chain.HeadSlot(),
 			"state":               q.smm.String(),
 			"staleEpoch":          q.staleEpochs,
-		}).Trace("tick")
+		}).Debug("tick")
 
 		select {
 		case <-ticker.C:
