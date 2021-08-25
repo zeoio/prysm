@@ -100,7 +100,16 @@ func (s *Service) broadcastAttestation(ctx context.Context, subnet uint64, att *
 			traceutil.AnnotateError(span, err)
 		}
 	}
-
+	peers := s.pubsub.ListPeers(attestationToTopic(subnet, forkDigest) + s.Encoding().ProtocolSuffix())
+	log.Infof("Broadcasting for topic: %s", attestationToTopic(subnet, forkDigest))
+	for _, p := range peers {
+		rawAversion, err := s.host.Peerstore().Get(p, "AgentVersion")
+		aVersion, ok := rawAversion.(string)
+		if err != nil || !ok {
+			aVersion = ""
+		}
+		log.Infof("Broadcasting to peer %s with agent %s", p.String(), aVersion)
+	}
 	if err := s.broadcastObject(ctx, att, attestationToTopic(subnet, forkDigest)); err != nil {
 		log.WithError(err).Error("Failed to broadcast attestation")
 		traceutil.AnnotateError(span, err)
