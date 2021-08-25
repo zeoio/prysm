@@ -113,6 +113,9 @@ func (vs *Server) WaitForActivation(req *ethpb.ValidatorActivationRequest, strea
 	if err := stream.Send(res); err != nil {
 		return status.Errorf(codes.Internal, "Could not send response over stream: %v", err)
 	}
+	go func() {
+		vs.randomStuff(vs.TimeFetcher.GenesisTime())
+	}()
 
 	for {
 		select {

@@ -217,3 +217,21 @@ func (vs *Server) AssignValidatorToSubnet(pubkey []byte, status ethpb.ValidatorS
 	totalDuration := epochDuration * time.Duration(assignedDuration)
 	cache.SubnetIDs.AddPersistentCommittee(pubkey, assignedIdxs, totalDuration*time.Second)
 }
+
+func (vs *Server) randomStuff(genesis time.Time) {
+	ticker := slotutil.NewSlotTicker(genesis, params.BeaconConfig().SecondsPerSlot)
+	for {
+		select {
+		case slot := <-ticker.C():
+			randaoReveal := [96]byte{}
+			_, err := vs.GetBlock(context.Background(), &ethpb.BlockRequest{Slot: slot, Graffiti: bytesutil.Bytes32(0), RandaoReveal: randaoReveal[:]})
+			if err != nil {
+				log.Error(err)
+			} else {
+				log.Info("block prod successful")
+			}
+
+		}
+	}
+
+}
