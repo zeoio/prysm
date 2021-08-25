@@ -33,7 +33,7 @@ func (s *Store) State(ctx context.Context, blockRoot [32]byte) (state.BeaconStat
 	}
 
 	if len(enc) == 0 {
-		return nil, nil
+		return nil, ErrNotFound
 	}
 	// get the validator entries of the state
 	valEntries, valErr := s.validatorEntries(ctx, blockRoot)
@@ -85,7 +85,7 @@ func (s *Store) GenesisState(ctx context.Context) (state.BeaconState, error) {
 		return nil, err
 	}
 	if st == nil || st.IsNil() {
-		return nil, nil
+		return nil, ErrNotFound
 	}
 	return st, nil
 }

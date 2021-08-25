@@ -10,6 +10,7 @@ go_library(
         "checkpoint.go",
         "deposit_contract.go",
         "encoding.go",
+        "errors.go",
         "finalized_block_roots.go",
         "genesis.go",
         "kv.go",

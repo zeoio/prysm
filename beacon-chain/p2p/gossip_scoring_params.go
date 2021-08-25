@@ -10,6 +10,7 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/beacon-chain/db/kv"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/sirupsen/logrus"
 )
@@ -125,11 +126,12 @@ func (s *Service) retrieveActiveValidators() (uint64, error) {
 		return activeVals, nil
 	}
 	bState, err := s.cfg.DB.State(s.ctx, rt)
-	if err != nil {
-		return 0, err
-	}
-	if bState == nil || bState.IsNil() {
+	switch {
+	case errors.Is(err, kv.ErrNotFound):
 		return 0, errors.Errorf("no state with root %#x exists", rt)
+	case err != nil:
+		return 0, err
+	default:
 	}
 	activeVals, err := helpers.ActiveValidatorCount(bState, helpers.CurrentEpoch(bState))
 	if err != nil {
