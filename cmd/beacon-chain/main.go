@@ -204,6 +204,7 @@ func startNode(ctx *cli.Context) error {
 	}
 
 	// verify if ToS accepted
+	// 是否接受使用条款
 	if err := tos.VerifyTosAcceptedOrPrompt(ctx); err != nil {
 		return err
 	}

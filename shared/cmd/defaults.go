@@ -36,6 +36,7 @@ func DefaultDataDir() string {
 		} else if runtime.GOOS == "windows" {
 			return filepath.Join(home, "AppData", "Local", "Eth2")
 		} else {
+			// ~/.eth2
 			return filepath.Join(home, ".eth2")
 		}
 	}
