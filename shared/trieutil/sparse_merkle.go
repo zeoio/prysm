@@ -56,11 +56,13 @@ func GenerateTrieFromItems(items [][]byte, depth uint64) (*SparseMerkleTrie, err
 	}
 	layers[0] = transformedLeaves
 	for i := uint64(0); i < depth; i++ {
+		// layers[i]元素的个数需要是偶数
 		if len(layers[i])%2 == 1 {
 			layers[i] = append(layers[i], ZeroHashes[i][:])
 		}
 		updatedValues := make([][]byte, 0)
 		for j := 0; j < len(layers[i]); j += 2 {
+			// 相邻的两个字节进行hash
 			concat := hashutil.Hash(append(layers[i][j], layers[i][j+1]...))
 			updatedValues = append(updatedValues, concat[:])
 		}

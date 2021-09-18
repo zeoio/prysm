@@ -31,7 +31,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/powchain/types"
 	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state/v1"
+	v1 "github.com/prysmaticlabs/prysm/beacon-chain/state/v1"
 	contracts "github.com/prysmaticlabs/prysm/contracts/deposit-contract"
 	protodb "github.com/prysmaticlabs/prysm/proto/beacon/db"
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
@@ -1049,6 +1049,7 @@ func dedupEndpoints(endpoints []string) []string {
 	selectionMap := make(map[string]bool)
 	newEndpoints := make([]string, 0, len(endpoints))
 	for _, point := range endpoints {
+		// 去重
 		if selectionMap[point] {
 			continue
 		}
